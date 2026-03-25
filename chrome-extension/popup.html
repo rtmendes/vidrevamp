@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VidRevamp</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 300px;
+      min-height: 380px;
+      background: #09090b;
+      color: #e4e4e7;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 13px;
+    }
+
+    /* Header */
+    .header {
+      padding: 14px 16px;
+      border-bottom: 1px solid #27272a;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #7c3aed, #4f46e5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .logo svg { color: white; }
+    .header-text h1 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #f4f4f5;
+    }
+    .header-text p {
+      font-size: 10px;
+      color: #71717a;
+      margin-top: 1px;
+    }
+
+    /* Platform indicator */
+    .platform-bar {
+      padding: 8px 16px;
+      background: #18181b;
+      border-bottom: 1px solid #27272a;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .platform-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .platform-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #10b981;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .video-count {
+      font-size: 11px;
+      color: #71717a;
+    }
+
+    /* Main content */
+    .content { padding: 14px 16px; }
+
+    /* Sort button */
+    .sort-btn {
+      width: 100%;
+      background: linear-gradient(135deg, #7c3aed, #4f46e5);
+      color: white;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 11px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: opacity 0.15s;
+      margin-bottom: 12px;
+    }
+    .sort-btn:hover { opacity: 0.85; }
+    .sort-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Section label */
+    .section-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: #52525b;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+
+    /* Quick links */
+    .quick-links {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    .quick-link {
+      background: #18181b;
+      border: 1px solid #27272a;
+      color: #a1a1aa;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 8px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: center;
+      text-decoration: none;
+      display: block;
+      transition: all 0.15s;
+    }
+    .quick-link:hover {
+      background: #27272a;
+      color: #e4e4e7;
+      border-color: #3f3f46;
+    }
+
+    /* Vault items */
+    .vault-section { margin-bottom: 14px; }
+    .vault-item {
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 8px;
+      padding: 9px 11px;
+      margin-bottom: 6px;
+      font-size: 11px;
+      color: #a1a1aa;
+      display: flex;
+      align-items: flex-start;
+      gap: 7px;
+      line-height: 1.4;
+    }
+    .vault-type {
+      font-size: 9px;
+      font-weight: 800;
+      text-transform: uppercase;
+      padding: 2px 5px;
+      border-radius: 4px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .vault-type.hook {
+      background: rgba(234, 179, 8, 0.15);
+      color: #eab308;
+      border: 1px solid rgba(234, 179, 8, 0.2);
+    }
+    .vault-type.style {
+      background: rgba(59, 130, 246, 0.15);
+      color: #3b82f6;
+      border: 1px solid rgba(59, 130, 246, 0.2);
+    }
+    .vault-item-text {
+      flex: 1;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+    .vault-empty {
+      text-align: center;
+      color: #52525b;
+      font-size: 11px;
+      padding: 12px 0;
+    }
+
+    /* Status */
+    .status {
+      padding: 8px 16px 14px;
+      font-size: 10px;
+      color: #52525b;
+      text-align: center;
+      border-top: 1px solid #27272a;
+      margin-top: auto;
+    }
+    .status a { color: #a78bfa; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+      </svg>
+    </div>
+    <div class="header-text">
+      <h1>VidRevamp</h1>
+      <p>Sort &amp; Analyze · Hook Intelligence · AI</p>
+    </div>
+  </div>
+
+  <!-- Platform bar -->
+  <div class="platform-bar">
+    <div class="platform-badge">
+      <div class="platform-dot" id="platform-dot"></div>
+      <span id="platform-name">Detecting page...</span>
+    </div>
+    <span class="video-count" id="video-count"></span>
+  </div>
+
+  <!-- Content -->
+  <div class="content">
+    <!-- Sort button -->
+    <button class="sort-btn" id="sort-btn" disabled>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <polyline points="19 12 12 19 5 12"></polyline>
+      </svg>
+      Sort by Views
+    </button>
+
+    <!-- Quick links -->
+    <div class="section-label">Open in VidRevamp</div>
+    <div class="quick-links">
+      <a class="quick-link" href="http://localhost:3001/dashboard/videos" target="_blank" rel="noopener noreferrer">📹 Videos</a>
+      <a class="quick-link" href="http://localhost:3001/dashboard/vault" target="_blank" rel="noopener noreferrer">🔖 Vault</a>
+      <a class="quick-link" href="http://localhost:3001/dashboard/hook-lab" target="_blank" rel="noopener noreferrer">⚡ Hook Lab</a>
+      <a class="quick-link" href="http://localhost:3001/dashboard/script" target="_blank" rel="noopener noreferrer">✍️ Script</a>
+    </div>
+
+    <!-- Saved vault items -->
+    <div class="vault-section">
+      <div class="section-label">Recently Saved to Vault (<span id="vault-count">0</span>)</div>
+      <div id="vault-items-list">
+        <div class="vault-empty">No items saved yet. Use "Save Hook" buttons on videos.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="status">
+    <a href="http://localhost:3001" target="_blank" rel="noopener noreferrer">Open VidRevamp Dashboard</a>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

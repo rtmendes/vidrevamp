@@ -1,0 +1,25 @@
+/* VidRevamp Extension — Injected Styles */
+
+@keyframes sc-slide-up {
+  from { opacity: 0; transform: translateX(-50%) translateY(12px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.sc-toast {
+  animation: sc-slide-up 0.3s ease;
+}
+
+.sc-outlier-badge,
+.sc-save-btn {
+  /* Reset any site-level CSS that could break positioning */
+  box-sizing: border-box !important;
+  line-height: 1 !important;
+}
+
+.sc-floating-bar {
+  box-sizing: border-box;
+}
+
+.sc-floating-bar * {
+  box-sizing: border-box;
+}
