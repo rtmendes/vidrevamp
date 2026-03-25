@@ -33,7 +33,13 @@ export async function middleware(request: NextRequest) {
   );
 
   // Refresh the session — do not remove this line
-  await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // Redirect unauthenticated users away from protected routes
+  const path = request.nextUrl.pathname;
+  if (!user && path.startsWith('/dashboard')) {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
 
   return supabaseResponse;
 }

@@ -64,6 +64,7 @@ export default function ChannelsPage() {
   const [searching, setSearching] = useState(false);
   const [addingChannelId, setAddingChannelId] = useState<string | null>(null);
   const [addError, setAddError] = useState('');
+  const [saveError, setSaveError] = useState('');
 
   const activeWatchlist = watchlists.find((w) => w.id === selectedWatchlist);
 
@@ -80,6 +81,7 @@ export default function ChannelsPage() {
   async function handleCreateWatchlist() {
     if (!newWatchlistName.trim()) return;
     setSavingWatchlist(true);
+    setSaveError('');
     const result = await createWatchlist(newWatchlistName.trim());
     if (result.success && result.id) {
       const newWl: Watchlist = {
@@ -91,9 +93,11 @@ export default function ChannelsPage() {
       };
       setWatchlists((prev) => [...prev, newWl]);
       setSelectedWatchlist(result.id);
+      setNewWatchlistName('');
+      setShowAddWatchlist(false);
+    } else {
+      setSaveError(result.error ?? 'Failed to create watchlist. Please sign in.');
     }
-    setNewWatchlistName('');
-    setShowAddWatchlist(false);
     setSavingWatchlist(false);
   }
 
@@ -201,13 +205,20 @@ export default function ChannelsPage() {
           </p>
         </div>
         <button
-          onClick={() => setShowAddWatchlist(true)}
+          onClick={() => { setShowAddWatchlist(true); setSaveError(''); }}
           className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
         >
           <Plus className="w-4 h-4" />
           New Watchlist
         </button>
       </div>
+
+      {saveError && (
+        <div className="mb-4 flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-[12px] text-red-400">
+          <X className="w-3.5 h-3.5 flex-shrink-0" />
+          {saveError}
+        </div>
+      )}
 
       {isPending && !loaded ? (
         <div className="flex items-center justify-center py-24 text-zinc-500">
