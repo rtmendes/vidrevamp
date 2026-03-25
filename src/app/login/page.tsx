@@ -4,10 +4,12 @@ import { useState } from 'react';
 import { Zap, Mail, ArrowRight, Loader2 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -22,6 +24,7 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
 
+    const supabase = getSupabase();
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
       options: {
