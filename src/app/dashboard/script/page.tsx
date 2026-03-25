@@ -16,16 +16,55 @@ import {
   Type,
   Camera,
   AlertCircle,
+  Lightbulb,
+  Users,
+  BookOpen,
+  Laugh,
+  ShieldCheck,
+  Eye,
+  Heart,
 } from 'lucide-react';
 import { generateMultiModalBlueprint, fixScript, translateBlueprint } from '@/actions/ai-scripts';
 import { MOCK_VAULT_ITEMS } from '@/lib/mock-data';
 import { SUPPORTED_LANGUAGES } from '@/types';
 import { cn } from '@/lib/utils';
 import type { ScriptBlueprint } from '@/types';
+import { AI_MODELS, DEFAULT_MODEL_ID, BADGE_COLORS, TIER_LABELS, type AIModel } from '@/lib/ai-models';
+
+// ── Scenario & Hook config ────────────────────────────────────────────────────
+
+const SCENARIO_TYPES = [
+  { id: 'founder', label: 'Founder Story', icon: Heart, color: 'text-pink-400', template: 'Founder-led personal story arc: describe the problem I faced, the journey/turning point, and the solution/result I achieved. Make it authentic and emotionally compelling.' },
+  { id: 'objection', label: 'Objection Handling', icon: ShieldCheck, color: 'text-blue-400', template: 'Address the #1 objection customers have about [topic]. Acknowledge the objection, reframe it, then resolve it with evidence and a CTA.' },
+  { id: 'bts', label: 'Behind the Scenes', icon: Eye, color: 'text-orange-400', template: 'Behind-the-scenes of my process building [topic]. Show the real work, failures, and lessons. Build trust through transparency.' },
+  { id: 'educational', label: 'Educational', icon: BookOpen, color: 'text-emerald-400', template: 'Teach [topic] in a clear, structured way. Lead with a surprising fact or counterintuitive insight. Use numbered points or a framework. Position me as the authority.' },
+  { id: 'relatable', label: 'Relatable', icon: Users, color: 'text-violet-400', template: 'POV-style relatable scenario about [topic]. The audience should immediately see themselves in this situation. Use "you" language. End with a resolution they want.' },
+  { id: 'entertainment', label: 'Entertainment', icon: Laugh, color: 'text-yellow-400', template: 'Entertainment-first approach to [topic]. Hook with something unexpected or funny. Embed the value/message within the entertainment. Soft sell at the end.' },
+] as const;
+
+const HOOK_FORMULAS = [
+  { id: 'curiosity', label: 'Curiosity Gap', example: 'What nobody tells you about [topic] — until now.' },
+  { id: 'contradiction', label: 'Contradiction', example: 'Everyone says [X] is the answer. Here\'s why they\'re wrong.' },
+  { id: 'confession', label: 'Confession', example: 'I made this mistake for 5 years before I figured it out.' },
+  { id: 'transparency', label: 'Transparency', example: 'This is my [result]. I\'m showing you everything.' },
+  { id: 'boldclaim', label: 'Bold Claim', example: 'I [achieved X] in [timeframe]. Here\'s the exact system.' },
+  { id: 'pov', label: 'POV / Relatable', example: 'POV: You finally stop [problem] and do this instead.' },
+  { id: 'painpoint', label: 'Pain Point', example: 'If you\'re still [struggling with X], you need to see this.' },
+  { id: 'social', label: 'Social Proof', example: '[Number] people did [X] using this exact framework.' },
+] as const;
+
+const PLATFORMS = ['YouTube (Long)', 'YouTube Shorts', 'TikTok', 'Instagram Reels', 'LinkedIn'];
+const DURATIONS = ['15 seconds', '30 seconds', '60 seconds', '3 minutes', '5 minutes', '10 minutes'];
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function ScriptPage() {
   const [subject, setSubject] = useState('');
   const [angle, setAngle] = useState('');
+  const [scenarioType, setScenarioType] = useState<string>('');
+  const [hookFormula, setHookFormula] = useState<string>('');
+  const [platform, setPlatform] = useState('TikTok');
+  const [duration, setDuration] = useState('60 seconds');
   const [blueprint, setBlueprint] = useState<ScriptBlueprint | null>(null);
   const [activeLanguage, setActiveLanguage] = useState('en');
   const [showFixer, setShowFixer] = useState(false);
@@ -34,6 +73,8 @@ export default function ScriptPage() {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [useVault, setUseVault] = useState(true);
+  const [selectedModelId, setSelectedModelId] = useState(DEFAULT_MODEL_ID);
+  const [showModelPicker, setShowModelPicker] = useState(false);
 
   const [isGenerating, startGenerate] = useTransition();
   const [isFixing, startFix] = useTransition();
@@ -44,11 +85,20 @@ export default function ScriptPage() {
   function handleGenerate() {
     if (!subject.trim() || !angle.trim()) return;
     setError(null);
+    const scenario = SCENARIO_TYPES.find(s => s.id === scenarioType);
+    const hook = HOOK_FORMULAS.find(h => h.id === hookFormula);
+    const enrichedAngle = [
+      angle.trim(),
+      scenario ? `\n\nScript scenario: ${scenario.template}` : '',
+      hook ? `\nHook formula to use: "${hook.example}"` : '',
+      `\nPlatform: ${platform} · Duration: ${duration}`,
+    ].join('');
     startGenerate(async () => {
       const result = await generateMultiModalBlueprint(
         subject,
-        angle,
-        useVault ? vaultHooks : []
+        enrichedAngle,
+        useVault ? vaultHooks : [],
+        selectedModelId
       );
       if (result.success && result.data) {
         setBlueprint(result.data);
@@ -63,7 +113,7 @@ export default function ScriptPage() {
     if (!blueprint || !fixerInstruction.trim()) return;
     setError(null);
     startFix(async () => {
-      const result = await fixScript(blueprint, fixerInstruction);
+      const result = await fixScript(blueprint, fixerInstruction, selectedModelId);
       if (result.success && result.data) {
         setBlueprint(result.data);
         setFixerInstruction('');
@@ -83,7 +133,7 @@ export default function ScriptPage() {
     }
     setError(null);
     startTranslate(async () => {
-      const result = await translateBlueprint(blueprint, lang.label);
+      const result = await translateBlueprint(blueprint, lang.label, selectedModelId);
       if (result.success && result.data) {
         setBlueprint(result.data);
         setActiveLanguage(langCode);
@@ -123,6 +173,82 @@ export default function ScriptPage() {
       <div className="grid grid-cols-[1fr_1.4fr] gap-5">
         {/* Left: Input panel */}
         <div className="space-y-4">
+
+          {/* Scenario Type Selector */}
+          <div className="bg-zinc-900 border border-zinc-800/60 rounded-xl p-4">
+            <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-3 block flex items-center gap-1.5">
+              <Lightbulb className="w-3.5 h-3.5 text-yellow-400" />
+              Script Scenario
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {SCENARIO_TYPES.map(s => {
+                const Icon = s.icon;
+                const active = scenarioType === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => setScenarioType(active ? '' : s.id)}
+                    className={cn(
+                      'flex items-center gap-2 px-3 py-2 rounded-lg text-[12px] font-medium border transition-all text-left',
+                      active
+                        ? 'bg-zinc-800 border-zinc-600 text-zinc-200'
+                        : 'bg-zinc-800/30 border-zinc-800/60 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700'
+                    )}
+                  >
+                    <Icon className={cn('w-3.5 h-3.5 flex-shrink-0', active ? s.color : 'text-zinc-600')} />
+                    {s.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Hook Formula + Platform */}
+          <div className="bg-zinc-900 border border-zinc-800/60 rounded-xl p-4 space-y-3">
+            <div>
+              <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2 block">Hook Formula</label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {HOOK_FORMULAS.map(h => (
+                  <button
+                    key={h.id}
+                    onClick={() => setHookFormula(hookFormula === h.id ? '' : h.id)}
+                    className={cn(
+                      'px-2.5 py-1.5 rounded-lg text-[11px] font-medium border transition-all text-left truncate',
+                      hookFormula === h.id
+                        ? 'bg-violet-600/20 border-violet-500/40 text-violet-300'
+                        : 'bg-zinc-800/30 border-zinc-800/60 text-zinc-500 hover:text-zinc-300'
+                    )}
+                  >
+                    {h.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5 block">Platform</label>
+                <select
+                  value={platform}
+                  onChange={e => setPlatform(e.target.value)}
+                  className="w-full bg-zinc-800 border border-zinc-700/50 rounded-lg px-3 py-1.5 text-[12px] text-zinc-300 focus:outline-none focus:border-violet-500/60"
+                >
+                  {PLATFORMS.map(p => <option key={p}>{p}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5 block">Duration</label>
+                <select
+                  value={duration}
+                  onChange={e => setDuration(e.target.value)}
+                  className="w-full bg-zinc-800 border border-zinc-700/50 rounded-lg px-3 py-1.5 text-[12px] text-zinc-300 focus:outline-none focus:border-violet-500/60"
+                >
+                  {DURATIONS.map(d => <option key={d}>{d}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+
           {/* Subject */}
           <div className="bg-zinc-900 border border-zinc-800/60 rounded-xl p-4 space-y-4">
             <div className="space-y-1.5">
@@ -181,6 +307,71 @@ export default function ScriptPage() {
                 <p className="text-[12px] text-red-300 leading-relaxed">{error}</p>
               </div>
             )}
+
+            {/* Model Picker */}
+            <div className="relative">
+              <button
+                onClick={() => setShowModelPicker(!showModelPicker)}
+                className="w-full flex items-center justify-between px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-sm hover:border-zinc-700 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  {(() => {
+                    const m = AI_MODELS.find(x => x.id === selectedModelId)!;
+                    return (
+                      <>
+                        <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded border', BADGE_COLORS[m.badge])}>
+                          {m.provider}
+                        </span>
+                        <span className="text-zinc-300 font-medium">{m.label}</span>
+                        <span className="text-zinc-600 text-[11px]">
+                          ~${((m.input_per_1k * 1.5 + m.output_per_1k * 0.5)).toFixed(4)}/script
+                        </span>
+                      </>
+                    );
+                  })()}
+                </div>
+                <ChevronDown className={cn('w-3.5 h-3.5 text-zinc-500 transition-transform', showModelPicker && 'rotate-180')} />
+              </button>
+
+              {showModelPicker && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-950 border border-zinc-800 rounded-xl shadow-xl z-20 overflow-hidden">
+                  {(['power', 'balanced', 'fast'] as AIModel['tier'][]).map((tier) => {
+                    const tierModels = AI_MODELS.filter(m => m.tier === tier);
+                    return (
+                      <div key={tier}>
+                        <div className="px-3 py-1.5 bg-zinc-900/60">
+                          <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-wider">{TIER_LABELS[tier]}</span>
+                        </div>
+                        {tierModels.map((m) => (
+                          <button
+                            key={m.id}
+                            onClick={() => { setSelectedModelId(m.id); setShowModelPicker(false); }}
+                            className={cn(
+                              'w-full flex items-start gap-3 px-3 py-2.5 text-left hover:bg-zinc-800/60 transition-colors',
+                              selectedModelId === m.id && 'bg-violet-500/10'
+                            )}
+                          >
+                            <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0 mt-0.5', BADGE_COLORS[m.badge])}>
+                              {m.provider}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[13px] font-medium text-zinc-200">{m.label}</span>
+                                <span className="text-[10px] text-zinc-500">
+                                  ${m.input_per_1k.toFixed(5)} / ${m.output_per_1k.toFixed(5)}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-zinc-500 mt-0.5">{m.description}</p>
+                            </div>
+                            {selectedModelId === m.id && <Check className="w-3.5 h-3.5 text-violet-400 shrink-0 mt-1" />}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
             {/* Generate button */}
             <button

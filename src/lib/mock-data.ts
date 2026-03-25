@@ -123,6 +123,9 @@ export const MOCK_VIDEOS: VideoInsight[] = [
     channel: MOCK_CHANNELS[1],
     created_at: new Date().toISOString(),
     analyzed_at: new Date().toISOString(),
+    language: 'en',
+    country: 'US',
+    tags: ['business', 'mindset', 'entrepreneur'],
   },
   {
     id: 'vid-2',
@@ -165,6 +168,9 @@ export const MOCK_VIDEOS: VideoInsight[] = [
     channel: MOCK_CHANNELS[0],
     created_at: new Date().toISOString(),
     analyzed_at: new Date().toISOString(),
+    language: 'en',
+    country: 'US',
+    tags: ['social-media', 'growth', 'authenticity'],
   },
   {
     id: 'vid-3',
@@ -205,6 +211,9 @@ export const MOCK_VIDEOS: VideoInsight[] = [
     channel: MOCK_CHANNELS[3],
     created_at: new Date().toISOString(),
     analyzed_at: new Date().toISOString(),
+    language: 'en',
+    country: 'CA',
+    tags: ['digital-products', 'income', 'solopreneur'],
   },
   {
     id: 'vid-4',
@@ -245,6 +254,9 @@ export const MOCK_VIDEOS: VideoInsight[] = [
     channel: MOCK_CHANNELS[4],
     created_at: new Date().toISOString(),
     analyzed_at: new Date().toISOString(),
+    language: 'en',
+    country: 'US',
+    tags: ['tools', 'solopreneur', 'productivity'],
   },
 ];
 

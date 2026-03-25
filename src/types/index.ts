@@ -72,6 +72,9 @@ export interface VideoInsight {
   analyzed_at?: string;
   created_at: string;
   channel?: TrackedChannel;
+  language?: string;   // ISO 639-1 e.g. 'en' | 'es' | 'fr' | 'de' | 'pt' | 'ja' | 'ko' | 'hi' | 'ar'
+  country?: string;    // ISO 3166-1 alpha-2 e.g. 'US' | 'GB' | 'AU' | 'CA' | 'IN' | 'BR'
+  tags?: string[];     // content tags for filtering
 }
 
 export interface VaultItem {

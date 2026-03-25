@@ -14,7 +14,6 @@ import {
   Loader2,
 } from 'lucide-react';
 import { getVaultItems, addVaultItem, deleteVaultItem } from '@/actions/vault';
-import { MOCK_VAULT_ITEMS } from '@/lib/mock-data';
 import { cn } from '@/lib/utils';
 import type { VaultItem, VaultItemType } from '@/types';
 
@@ -33,11 +32,11 @@ export default function VaultPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  // Load vault items from Supabase on mount; fall back to mock if not authed
+  // Load vault items from Supabase on mount
   useEffect(() => {
     startTransition(async () => {
       const data = await getVaultItems();
-      setItems(data.length > 0 ? data : MOCK_VAULT_ITEMS);
+      setItems(data);
       setLoaded(true);
     });
   }, []);

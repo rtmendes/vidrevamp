@@ -161,6 +161,42 @@ CREATE INDEX idx_saved_items_project ON saved_items(project_id);
 CREATE INDEX idx_generated_scripts_user ON generated_scripts(user_id);
 
 -- ============================================================
+-- NAV SIDEBAR STATE (accordion, folders, item placements)
+-- ============================================================
+
+-- Collapse state of built-in nav sections (RESEARCH, CREATE, etc.)
+CREATE TABLE IF NOT EXISTS nav_section_states (
+  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  section_key TEXT NOT NULL,
+  is_open     BOOLEAN NOT NULL DEFAULT TRUE,
+  PRIMARY KEY (user_id, section_key)
+);
+
+-- Custom nav folders with optional nesting (parent_id = NULL for root)
+CREATE TABLE IF NOT EXISTS nav_folders (
+  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name        TEXT NOT NULL,
+  parent_id   UUID REFERENCES nav_folders(id) ON DELETE CASCADE,
+  sort_order  INT NOT NULL DEFAULT 0,
+  is_open     BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Which custom folder each nav item lives in (NULL = default section)
+CREATE TABLE IF NOT EXISTS nav_item_placements (
+  user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  item_id    TEXT NOT NULL,
+  folder_id  UUID REFERENCES nav_folders(id) ON DELETE SET NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (user_id, item_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_nav_folders_user ON nav_folders(user_id);
+CREATE INDEX IF NOT EXISTS idx_nav_folders_parent ON nav_folders(parent_id);
+CREATE INDEX IF NOT EXISTS idx_nav_placements_user ON nav_item_placements(user_id);
+
+-- ============================================================
 -- ROW LEVEL SECURITY (RLS)
 -- ============================================================
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
@@ -182,3 +218,11 @@ CREATE POLICY "saved_items_via_project" ON saved_items FOR ALL
   USING (
     project_id IN (SELECT id FROM projects WHERE user_id = auth.uid())
   );
+
+ALTER TABLE nav_section_states ENABLE ROW LEVEL SECURITY;
+ALTER TABLE nav_folders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE nav_item_placements ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "nav_sections_own_data" ON nav_section_states FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "nav_folders_own_data" ON nav_folders FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "nav_placements_own_data" ON nav_item_placements FOR ALL USING (auth.uid() = user_id);

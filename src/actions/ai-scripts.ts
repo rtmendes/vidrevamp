@@ -2,10 +2,24 @@
 
 import OpenAI from 'openai';
 import type { ScriptBlueprint, VaultItem } from '@/types';
+import { logUsageEvent } from './log-usage';
+import { estimateModelCost, getModel, DEFAULT_MODEL_ID } from '@/lib/ai-models';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+/** Return the right OpenAI-compatible client for a given model ID */
+function getClient(modelId: string): OpenAI {
+  const m = getModel(modelId);
+  if (m.via_openrouter) {
+    return new OpenAI({
+      apiKey: process.env.OPENROUTER_API_KEY,
+      baseURL: 'https://openrouter.ai/api/v1',
+      defaultHeaders: {
+        'HTTP-Referer': 'https://sandcastles-clone.vercel.app',
+        'X-Title': 'VidRevamp',
+      },
+    });
+  }
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+}
 
 // ============================================================
 // PIPELINE A: Main Multi-Modal Blueprint Generator (RAG)
@@ -15,14 +29,14 @@ const openai = new OpenAI({
 export async function generateMultiModalBlueprint(
   subject: string,
   angle: string,
-  vaultItems: VaultItem[]
+  vaultItems: VaultItem[],
+  modelId: string = DEFAULT_MODEL_ID
 ): Promise<{ success: boolean; data?: ScriptBlueprint; error?: string }> {
+  const t0 = Date.now();
+  const client = getClient(modelId);
   try {
-    // Build RAG context from vault — hooks and styles as examples
     const vaultContext = vaultItems.length > 0
-      ? vaultItems
-          .map((item) => `[${item.type}] ${item.content}`)
-          .join('\n')
+      ? vaultItems.map((item) => `[${item.type}] ${item.content}`).join('\n')
       : 'No vault items provided — use general best practices for viral short-form content.';
 
     const systemPrompt = `You are an expert content strategist for short-form video (TikTok, Instagram Reels, YouTube Shorts).
@@ -57,13 +71,11 @@ Rules:
 3. Visual instructions must be specific — camera angle, motion, subject.
 4. Return ONLY valid JSON — no markdown, no explanation outside the JSON.`;
 
-    const userMessage = `Subject: ${subject}\nAngle: ${angle}`;
-
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
+    const completion = await client.chat.completions.create({
+      model: modelId,
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessage },
+        { role: 'user', content: `Subject: ${subject}\nAngle: ${angle}` },
       ],
       response_format: { type: 'json_object' },
       temperature: 0.8,
@@ -71,11 +83,33 @@ Rules:
     });
 
     const raw = completion.choices[0]?.message?.content;
-    if (!raw) throw new Error('No response from OpenAI');
+    if (!raw) throw new Error('No response from AI');
 
-    const blueprint = JSON.parse(raw) as ScriptBlueprint;
-    return { success: true, data: blueprint };
+    const usage = completion.usage;
+    const provider = getModel(modelId).via_openrouter ? 'openrouter' : 'openai';
+    await logUsageEvent({
+      integration: 'openai',
+      use_case: 'script_gen',
+      model: modelId,
+      input_tokens: usage?.prompt_tokens ?? 0,
+      output_tokens: usage?.completion_tokens ?? 0,
+      total_tokens: usage?.total_tokens ?? 0,
+      cost_usd: estimateModelCost(modelId, usage?.prompt_tokens ?? 0, usage?.completion_tokens ?? 0),
+      duration_ms: Date.now() - t0,
+      status: 'success',
+      metadata: { subject, vault_items: vaultItems.length, provider },
+    });
+
+    return { success: true, data: JSON.parse(raw) as ScriptBlueprint };
   } catch (error) {
+    await logUsageEvent({
+      integration: 'openai',
+      use_case: 'script_gen',
+      model: modelId,
+      duration_ms: Date.now() - t0,
+      status: 'error',
+      metadata: { error: error instanceof Error ? error.message : 'unknown' },
+    });
     console.error('[AI] generateMultiModalBlueprint error:', error);
     return {
       success: false,
@@ -91,8 +125,11 @@ Rules:
 
 export async function fixScript(
   currentBlueprint: ScriptBlueprint,
-  userInstructions: string
+  userInstructions: string,
+  modelId: string = DEFAULT_MODEL_ID
 ): Promise<{ success: boolean; data?: ScriptBlueprint; error?: string }> {
+  const t0 = Date.now();
+  const client = getClient(modelId);
   try {
     const systemPrompt = `You are an expert content editor specializing in short-form video scripts.
 
@@ -102,16 +139,11 @@ Apply the user's change request to the current content blueprint. Rules:
 3. Do not make changes beyond what the user explicitly requested.
 4. Return ONLY valid JSON matching the original blueprint structure.`;
 
-    const userMessage = `Change request: ${userInstructions}
-
-Current blueprint:
-${JSON.stringify(currentBlueprint, null, 2)}`;
-
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
+    const completion = await client.chat.completions.create({
+      model: modelId,
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessage },
+        { role: 'user', content: `Change request: ${userInstructions}\n\nCurrent blueprint:\n${JSON.stringify(currentBlueprint, null, 2)}` },
       ],
       response_format: { type: 'json_object' },
       temperature: 0.7,
@@ -119,11 +151,30 @@ ${JSON.stringify(currentBlueprint, null, 2)}`;
     });
 
     const raw = completion.choices[0]?.message?.content;
-    if (!raw) throw new Error('No response from OpenAI');
+    if (!raw) throw new Error('No response from AI');
 
-    const updatedBlueprint = JSON.parse(raw) as ScriptBlueprint;
-    return { success: true, data: updatedBlueprint };
+    const usage = completion.usage;
+    await logUsageEvent({
+      integration: 'openai',
+      use_case: 'script_fix',
+      model: modelId,
+      input_tokens: usage?.prompt_tokens ?? 0,
+      output_tokens: usage?.completion_tokens ?? 0,
+      total_tokens: usage?.total_tokens ?? 0,
+      cost_usd: estimateModelCost(modelId, usage?.prompt_tokens ?? 0, usage?.completion_tokens ?? 0),
+      duration_ms: Date.now() - t0,
+      status: 'success',
+    });
+
+    return { success: true, data: JSON.parse(raw) as ScriptBlueprint };
   } catch (error) {
+    await logUsageEvent({
+      integration: 'openai',
+      use_case: 'script_fix',
+      model: modelId,
+      duration_ms: Date.now() - t0,
+      status: 'error',
+    });
     console.error('[AI] fixScript error:', error);
     return {
       success: false,
@@ -134,14 +185,15 @@ ${JSON.stringify(currentBlueprint, null, 2)}`;
 
 // ============================================================
 // PIPELINE C: The Translator
-// Translates a blueprint into a target language while
-// preserving pacing and social-native tone
 // ============================================================
 
 export async function translateBlueprint(
   blueprint: ScriptBlueprint,
-  targetLanguage: string
+  targetLanguage: string,
+  modelId: string = DEFAULT_MODEL_ID
 ): Promise<{ success: boolean; data?: ScriptBlueprint; error?: string }> {
+  const t0 = Date.now();
+  const client = getClient(modelId);
   try {
     const systemPrompt = `You are a professional translator specializing in social media content.
 
@@ -154,25 +206,43 @@ Critical rules:
 4. Maintain the exact JSON structure — translate only the text content fields.
 5. Return ONLY valid JSON matching the original structure.`;
 
-    const userMessage = `Translate this blueprint to ${targetLanguage}:\n${JSON.stringify(blueprint, null, 2)}`;
-
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
+    const completion = await client.chat.completions.create({
+      model: modelId,
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessage },
+        { role: 'user', content: `Translate this blueprint to ${targetLanguage}:\n${JSON.stringify(blueprint, null, 2)}` },
       ],
       response_format: { type: 'json_object' },
-      temperature: 0.4, // Lower temp for translations — more deterministic
+      temperature: 0.4,
       max_tokens: 2500,
     });
 
     const raw = completion.choices[0]?.message?.content;
-    if (!raw) throw new Error('No response from OpenAI');
+    if (!raw) throw new Error('No response from AI');
 
-    const translatedBlueprint = JSON.parse(raw) as ScriptBlueprint;
-    return { success: true, data: translatedBlueprint };
+    const usage = completion.usage;
+    await logUsageEvent({
+      integration: 'openai',
+      use_case: 'translate',
+      model: modelId,
+      input_tokens: usage?.prompt_tokens ?? 0,
+      output_tokens: usage?.completion_tokens ?? 0,
+      total_tokens: usage?.total_tokens ?? 0,
+      cost_usd: estimateModelCost(modelId, usage?.prompt_tokens ?? 0, usage?.completion_tokens ?? 0),
+      duration_ms: Date.now() - t0,
+      status: 'success',
+      metadata: { target_language: targetLanguage },
+    });
+
+    return { success: true, data: JSON.parse(raw) as ScriptBlueprint };
   } catch (error) {
+    await logUsageEvent({
+      integration: 'openai',
+      use_case: 'translate',
+      model: modelId,
+      duration_ms: Date.now() - t0,
+      status: 'error',
+    });
     console.error('[AI] translateBlueprint error:', error);
     return {
       success: false,
@@ -183,12 +253,12 @@ Critical rules:
 
 // ============================================================
 // PIPELINE D: GPT-4o Vision Analysis
-// Analyzes video screenshots to extract visual editing tactics
 // ============================================================
 
 export async function analyzeVideoVisuals(
   screenshotUrls: string[],
-  videoTitle: string
+  videoTitle: string,
+  modelId: string = 'gpt-4o' // Vision always uses GPT-4o — most OpenRouter models don't support it
 ): Promise<{
   success: boolean;
   data?: {
@@ -202,6 +272,8 @@ export async function analyzeVideoVisuals(
   };
   error?: string;
 }> {
+  const t0 = Date.now();
+  const client = new (await import('openai')).default({ apiKey: process.env.OPENAI_API_KEY });
   try {
     const imageMessages = screenshotUrls.slice(0, 10).map((url) => ({
       type: 'image_url' as const,
@@ -225,17 +297,14 @@ Analyze these screenshots from a viral video and extract the visual editing tact
 
 Be specific and actionable — a creator should be able to replicate these tactics.`;
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
+    const completion = await client.chat.completions.create({
+      model: modelId,
       messages: [
         { role: 'system', content: systemPrompt },
         {
           role: 'user',
           content: [
-            {
-              type: 'text',
-              text: `Analyze the visual editing tactics in this video: "${videoTitle}"`,
-            },
+            { type: 'text', text: `Analyze the visual editing tactics in this video: "${videoTitle}"` },
             ...imageMessages,
           ],
         },
@@ -248,9 +317,29 @@ Be specific and actionable — a creator should be able to replicate these tacti
     const raw = completion.choices[0]?.message?.content;
     if (!raw) throw new Error('No response from OpenAI Vision');
 
-    const analysis = JSON.parse(raw);
-    return { success: true, data: analysis };
+    const usage = completion.usage;
+    await logUsageEvent({
+      integration: 'openai',
+      use_case: 'vision',
+      model: modelId,
+      input_tokens: usage?.prompt_tokens ?? 0,
+      output_tokens: usage?.completion_tokens ?? 0,
+      total_tokens: usage?.total_tokens ?? 0,
+      cost_usd: estimateModelCost(modelId, usage?.prompt_tokens ?? 0, usage?.completion_tokens ?? 0),
+      duration_ms: Date.now() - t0,
+      status: 'success',
+      metadata: { video_title: videoTitle, screenshot_count: screenshotUrls.length },
+    });
+
+    return { success: true, data: JSON.parse(raw) };
   } catch (error) {
+    await logUsageEvent({
+      integration: 'openai',
+      use_case: 'vision',
+      model: modelId,
+      duration_ms: Date.now() - t0,
+      status: 'error',
+    });
     console.error('[AI] analyzeVideoVisuals error:', error);
     return {
       success: false,

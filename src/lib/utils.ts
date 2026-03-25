@@ -31,3 +31,16 @@ export function getPlatformColor(platform: string): string {
     default: return 'bg-zinc-600';
   }
 }
+
+// ── AI cost estimation (USD per 1K tokens) ──────────────────────────────────
+const AI_PRICING: Record<string, { input: number; output: number }> = {
+  'gpt-4o':        { input: 0.005,   output: 0.015 },
+  'gpt-4o-mini':   { input: 0.00015, output: 0.0006 },
+  'gpt-4-turbo':   { input: 0.01,    output: 0.03 },
+  'gpt-3.5-turbo': { input: 0.0005,  output: 0.0015 },
+};
+
+export function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
+  const p = AI_PRICING[model] ?? AI_PRICING['gpt-4o'];
+  return (inputTokens / 1000) * p.input + (outputTokens / 1000) * p.output;
+}
