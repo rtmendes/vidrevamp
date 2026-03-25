@@ -4,7 +4,7 @@ import { useState } from 'react';
 import {
   Play, TrendingUp, Eye, MousePointerClick, Users, Clock,
   BarChart3, ArrowUpRight, ArrowDownRight, RefreshCw, ChevronDown,
-  Zap, ThumbsUp, Share2, Bell, Radio,
+  Share2, Bell,
 } from 'lucide-react';
 import { cn, formatNumber } from '@/lib/utils';
 
@@ -82,15 +82,6 @@ const DEMOGRAPHICS = [
   { label: '65+',   male: 2,  female: 1  },
 ];
 
-// Build SVG path from retention data
-function retentionPath(data: number[], w = 320, h = 80): string {
-  const pts = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * w;
-    const y = h - (v / 100) * h;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  });
-  return `M ${pts.join(' L ')}`;
-}
 
 function ThumbnailGradient({ type, className }: { type: string; className?: string }) {
   const map: Record<string, string> = {

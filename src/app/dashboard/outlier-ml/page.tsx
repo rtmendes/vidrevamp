@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import {
-  BrainCircuit, TrendingUp, Zap, BarChart3, Target, Clock,
-  Play, RefreshCw, AlertCircle, CheckCircle2, Loader2,
-  ChevronRight, ArrowUpRight, FlaskConical, Database,
+  BrainCircuit, TrendingUp, BarChart3, Target, Clock,
+  RefreshCw, AlertCircle, CheckCircle2, Loader2,
+  ChevronRight, FlaskConical, Database,
   Eye, Activity, Layers,
 } from 'lucide-react';
 import { cn, formatNumber } from '@/lib/utils';

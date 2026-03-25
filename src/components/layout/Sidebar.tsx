@@ -36,8 +36,6 @@ import {
   MoreHorizontal,
   Pencil,
   Trash2,
-  MoveRight,
-  Plus,
   X,
   Check,
 } from 'lucide-react';
@@ -130,7 +128,6 @@ for (const section of NAV_SECTIONS) {
 }
 
 const LS_SECTIONS_KEY = 'vr_nav_sections';
-const LS_FOLDERS_KEY = 'vr_nav_folders';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
