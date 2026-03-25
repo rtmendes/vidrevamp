@@ -1,23 +1,16 @@
 'use server';
 
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseAdminClient, getEffectiveUserId } from '@/lib/supabase/server';
 import type { VaultItem, VaultItemType } from '@/types';
 
-// ============================================================
-// Vault Server Actions — persistent storage via Supabase
-// All operations are user-scoped via RLS (auth.uid() = user_id)
-// ============================================================
-
 export async function getVaultItems(): Promise<VaultItem[]> {
-  const supabase = createSupabaseServerClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
+  const supabase = createSupabaseAdminClient();
+  const userId = await getEffectiveUserId();
 
   const { data, error } = await supabase
     .from('vault_items')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -33,19 +26,12 @@ export async function addVaultItem(
   content: string,
   tags: string[] = []
 ): Promise<{ success: boolean; item?: VaultItem; error?: string }> {
-  const supabase = createSupabaseServerClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Not authenticated' };
+  const supabase = createSupabaseAdminClient();
+  const userId = await getEffectiveUserId();
 
   const { data, error } = await supabase
     .from('vault_items')
-    .insert({
-      user_id: user.id,
-      type,
-      content,
-      tags,
-    })
+    .insert({ user_id: userId, type, content, tags })
     .select()
     .single();
 
@@ -60,16 +46,14 @@ export async function addVaultItem(
 export async function deleteVaultItem(
   id: string
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = createSupabaseServerClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Not authenticated' };
+  const supabase = createSupabaseAdminClient();
+  const userId = await getEffectiveUserId();
 
   const { error } = await supabase
     .from('vault_items')
     .delete()
     .eq('id', id)
-    .eq('user_id', user.id); // RLS double-check
+    .eq('user_id', userId);
 
   if (error) {
     console.error('[vault] deleteVaultItem error:', error.message);
@@ -83,16 +67,14 @@ export async function updateVaultItemTags(
   id: string,
   tags: string[]
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = createSupabaseServerClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Not authenticated' };
+  const supabase = createSupabaseAdminClient();
+  const userId = await getEffectiveUserId();
 
   const { error } = await supabase
     .from('vault_items')
     .update({ tags, updated_at: new Date().toISOString() })
     .eq('id', id)
-    .eq('user_id', user.id);
+    .eq('user_id', userId);
 
   if (error) return { success: false, error: error.message };
   return { success: true };

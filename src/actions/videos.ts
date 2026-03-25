@@ -1,23 +1,16 @@
 'use server';
 
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseAdminClient, getEffectiveUserId } from '@/lib/supabase/server';
 import type { VideoInsight } from '@/types';
 
-// ============================================================
-// Video Insights — Supabase server actions
-// Videos are scoped by which channels the user tracks
-// ============================================================
-
 export async function getVideoInsights(): Promise<VideoInsight[]> {
-  const supabase = createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
+  const supabase = createSupabaseAdminClient();
+  const userId = await getEffectiveUserId();
 
-  // Get channel IDs from user's watchlists
   const { data: wlData } = await supabase
     .from('watchlists')
     .select('id')
-    .eq('user_id', user.id);
+    .eq('user_id', userId);
 
   const watchlistIds = wlData?.map((w) => w.id) ?? [];
   if (!watchlistIds.length) return [];
@@ -56,13 +49,9 @@ export async function saveVideoInsight(video: {
   duration_seconds?: number;
   outlier_score: number;
   published_at?: string;
-  language?: string;
-  country?: string;
   tags?: string[];
 }): Promise<{ success: boolean; id?: string; error?: string }> {
-  const supabase = createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Not authenticated' };
+  const supabase = createSupabaseAdminClient();
 
   const { data, error } = await supabase
     .from('video_insights')

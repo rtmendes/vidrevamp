@@ -1,28 +1,20 @@
 'use server';
 
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseAdminClient, getEffectiveUserId } from '@/lib/supabase/server';
 import type { Watchlist, TrackedChannel, PlatformType } from '@/types';
 
-// ============================================================
-// Channels & Watchlists — Supabase server actions
-// Security: watchlists are RLS-scoped to auth.uid()
-//           tracked_channels is shared (no RLS) — access via watchlists
-// ============================================================
-
 export async function getWatchlists(): Promise<Watchlist[]> {
-  const supabase = createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
+  const supabase = createSupabaseAdminClient();
+  const userId = await getEffectiveUserId();
 
   const { data: wlRows, error } = await supabase
     .from('watchlists')
     .select('id, name, created_at')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .order('created_at');
 
   if (error || !wlRows?.length) return [];
 
-  // Fetch channels for each watchlist
   const watchlists = await Promise.all(
     wlRows.map(async (wl) => {
       const { data: joinRows } = await supabase
@@ -43,7 +35,7 @@ export async function getWatchlists(): Promise<Watchlist[]> {
 
       return {
         id: wl.id,
-        user_id: user.id,
+        user_id: userId,
         name: wl.name,
         created_at: wl.created_at,
         channels,
@@ -57,13 +49,12 @@ export async function getWatchlists(): Promise<Watchlist[]> {
 export async function createWatchlist(
   name: string
 ): Promise<{ success: boolean; id?: string; error?: string }> {
-  const supabase = createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Not authenticated' };
+  const supabase = createSupabaseAdminClient();
+  const userId = await getEffectiveUserId();
 
   const { data, error } = await supabase
     .from('watchlists')
-    .insert({ user_id: user.id, name: name.trim() })
+    .insert({ user_id: userId, name: name.trim() })
     .select('id')
     .single();
 
@@ -82,13 +73,10 @@ export async function addChannelToWatchlist(
     average_views?: number;
   }
 ): Promise<{ success: boolean; channelId?: string; error?: string }> {
-  const supabase = createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Not authenticated' };
+  const supabase = createSupabaseAdminClient();
 
   const handle = channel.handle.startsWith('@') ? channel.handle : `@${channel.handle}`;
 
-  // Upsert channel by platform+handle (shared table)
   const { data: chData, error: chErr } = await supabase
     .from('tracked_channels')
     .upsert(
@@ -109,7 +97,6 @@ export async function addChannelToWatchlist(
     return { success: false, error: chErr?.message ?? 'Failed to save channel' };
   }
 
-  // Add to watchlist join (ignore duplicate)
   const { error: joinErr } = await supabase
     .from('watchlist_channels')
     .upsert(
@@ -125,9 +112,7 @@ export async function removeChannelFromWatchlist(
   watchlistId: string,
   channelId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Not authenticated' };
+  const supabase = createSupabaseAdminClient();
 
   const { error } = await supabase
     .from('watchlist_channels')
@@ -140,14 +125,13 @@ export async function removeChannelFromWatchlist(
 }
 
 export async function getTrackedChannels(): Promise<TrackedChannel[]> {
-  const supabase = createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
+  const supabase = createSupabaseAdminClient();
+  const userId = await getEffectiveUserId();
 
   const { data: wlData } = await supabase
     .from('watchlists')
     .select('id')
-    .eq('user_id', user.id);
+    .eq('user_id', userId);
 
   const watchlistIds = wlData?.map((w) => w.id) ?? [];
   if (!watchlistIds.length) return [];
@@ -169,16 +153,14 @@ export async function getTrackedChannels(): Promise<TrackedChannel[]> {
   return (data ?? []) as TrackedChannel[];
 }
 
-// Ensures a default watchlist exists, returns its ID
 export async function getOrCreateDefaultWatchlist(): Promise<string | null> {
-  const supabase = createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  const supabase = createSupabaseAdminClient();
+  const userId = await getEffectiveUserId();
 
   const { data: existing } = await supabase
     .from('watchlists')
     .select('id')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .limit(1)
     .single();
 

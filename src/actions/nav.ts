@@ -1,6 +1,6 @@
 'use server';
 
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseAdminClient, getEffectiveUserId } from '@/lib/supabase/server';
 
 export type NavFolder = {
   id: string;
@@ -13,25 +13,24 @@ export type NavFolder = {
 
 export type NavState = {
   folders: NavFolder[];
-  placements: Record<string, string | null>; // item_id → folder_id | null
+  placements: Record<string, string | null>;
 };
 
 export async function getNavState(): Promise<NavState> {
   try {
-    const supabase = createSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { folders: [], placements: {} };
+    const supabase = createSupabaseAdminClient();
+    const userId = await getEffectiveUserId();
 
     const [{ data: folders, error: fe }, { data: placements, error: pe }] = await Promise.all([
       supabase
         .from('nav_folders')
         .select('id, name, parent_id, sort_order, is_open, created_at')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .order('sort_order'),
       supabase
         .from('nav_item_placements')
         .select('item_id, folder_id')
-        .eq('user_id', user.id),
+        .eq('user_id', userId),
     ]);
 
     if (fe || pe) return { folders: [], placements: {} };
@@ -53,15 +52,13 @@ export async function createNavFolder(
   parentId: string | null
 ): Promise<{ id?: string; error?: string }> {
   try {
-    const supabase = createSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { error: 'Not authenticated' };
+    const supabase = createSupabaseAdminClient();
+    const userId = await getEffectiveUserId();
 
-    // Determine sort_order among siblings
     let siblingsQuery = supabase
       .from('nav_folders')
       .select('sort_order')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .order('sort_order', { ascending: false })
       .limit(1);
     if (parentId) siblingsQuery = siblingsQuery.eq('parent_id', parentId);
@@ -72,13 +69,7 @@ export async function createNavFolder(
 
     const { data, error } = await supabase
       .from('nav_folders')
-      .insert({
-        user_id: user.id,
-        name: name.trim(),
-        parent_id: parentId,
-        sort_order: sortOrder,
-        is_open: true,
-      })
+      .insert({ user_id: userId, name: name.trim(), parent_id: parentId, sort_order: sortOrder, is_open: true })
       .select('id')
       .single();
 
@@ -94,72 +85,40 @@ export async function updateNavFolder(
   updates: { name?: string; isOpen?: boolean; sortOrder?: number }
 ): Promise<void> {
   try {
-    const supabase = createSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    const supabase = createSupabaseAdminClient();
+    const userId = await getEffectiveUserId();
 
     const dbUpdates: Record<string, unknown> = {};
     if (updates.name !== undefined) dbUpdates.name = updates.name;
     if (updates.isOpen !== undefined) dbUpdates.is_open = updates.isOpen;
     if (updates.sortOrder !== undefined) dbUpdates.sort_order = updates.sortOrder;
 
-    await supabase
-      .from('nav_folders')
-      .update(dbUpdates)
-      .eq('id', id)
-      .eq('user_id', user.id);
-  } catch {
-    // silently fail — local state already updated
-  }
+    await supabase.from('nav_folders').update(dbUpdates).eq('id', id).eq('user_id', userId);
+  } catch { /* silently fail */ }
 }
 
 export async function deleteNavFolder(id: string): Promise<void> {
   try {
-    const supabase = createSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    const supabase = createSupabaseAdminClient();
+    const userId = await getEffectiveUserId();
 
-    // Move items back to their default section
-    await supabase
-      .from('nav_item_placements')
-      .delete()
-      .eq('folder_id', id)
-      .eq('user_id', user.id);
-
-    await supabase
-      .from('nav_folders')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', user.id);
-  } catch {
-    // silently fail
-  }
+    await supabase.from('nav_item_placements').delete().eq('folder_id', id).eq('user_id', userId);
+    await supabase.from('nav_folders').delete().eq('id', id).eq('user_id', userId);
+  } catch { /* silently fail */ }
 }
 
-export async function moveNavItem(
-  itemId: string,
-  folderId: string | null
-): Promise<void> {
+export async function moveNavItem(itemId: string, folderId: string | null): Promise<void> {
   try {
-    const supabase = createSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    const supabase = createSupabaseAdminClient();
+    const userId = await getEffectiveUserId();
 
     if (folderId === null) {
-      await supabase
-        .from('nav_item_placements')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('item_id', itemId);
+      await supabase.from('nav_item_placements').delete().eq('user_id', userId).eq('item_id', itemId);
     } else {
-      await supabase
-        .from('nav_item_placements')
-        .upsert(
-          { user_id: user.id, item_id: itemId, folder_id: folderId, sort_order: 0 },
-          { onConflict: 'user_id,item_id' }
-        );
+      await supabase.from('nav_item_placements').upsert(
+        { user_id: userId, item_id: itemId, folder_id: folderId, sort_order: 0 },
+        { onConflict: 'user_id,item_id' }
+      );
     }
-  } catch {
-    // silently fail
-  }
+  } catch { /* silently fail */ }
 }
