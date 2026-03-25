@@ -4,7 +4,6 @@ import { useState, useTransition } from 'react';
 import {
   Zap,
   BarChart3,
-  Shuffle,
   GitCompare,
   Loader2,
   AlertCircle,
