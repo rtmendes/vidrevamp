@@ -11,9 +11,9 @@ import {
 import { cn } from '@/lib/utils';
 import {
   generateWorkflowPlan, testN8nConnection, deployToN8n,
-  buildN8nWorkflow, getN8nExecutions,
-  type WorkflowPlan,
+  getN8nExecutions, type WorkflowPlan,
 } from '@/actions/automations';
+import { buildN8nWorkflow } from '@/lib/n8n-workflow';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
