@@ -61,11 +61,13 @@ type NavItem = {
   icon: React.ElementType;
   href: string;
   badge?: 'NEW' | 'AI';
+  tip?: string;
 };
 
 type NavSection = {
   key: string;
   label: string;
+  tip: string;
   items: NavItem[];
 };
 
@@ -73,53 +75,58 @@ const NAV_SECTIONS: NavSection[] = [
   {
     key: 'research',
     label: 'RESEARCH',
+    tip: 'Track competitor channels, find viral videos, spy on ad creatives & explore trends in your niche.',
     items: [
-      { id: 'channels', label: 'Channels', icon: Users, href: '/dashboard/channels' },
-      { id: 'videos', label: 'Videos', icon: Play, href: '/dashboard/videos' },
-      { id: 'research', label: 'Research', icon: TrendingUp, href: '/dashboard/research', badge: 'NEW' },
-      { id: 'ads', label: 'Ad Intel', icon: Target, href: '/dashboard/ads', badge: 'NEW' },
+      { id: 'channels', label: 'Channels', icon: Users, href: '/dashboard/channels', tip: 'Build watchlists of competitor & inspiration channels. Track subs, avg views & engagement.' },
+      { id: 'videos', label: 'Videos', icon: Play, href: '/dashboard/videos', tip: 'Browse recent uploads from your tracked channels. Score outlier videos by performance.' },
+      { id: 'research', label: 'Research', icon: TrendingUp, href: '/dashboard/research', badge: 'NEW', tip: 'AI-powered niche & topic research. Surface trending angles and underserved opportunities.' },
+      { id: 'ads', label: 'Ad Intel', icon: Target, href: '/dashboard/ads', badge: 'NEW', tip: 'Discover competitor ad creatives, messaging strategies & estimated spend.' },
     ],
   },
   {
     key: 'create',
     label: 'CREATE',
+    tip: 'AI-powered content creation tools — from first hook to final thumbnail.',
     items: [
-      { id: 'studio', label: 'UGC Studio', icon: Sparkles, href: '/dashboard/studio', badge: 'NEW' },
-      { id: 'hook-lab', label: 'Hook Lab', icon: FlaskConical, href: '/dashboard/hook-lab', badge: 'AI' },
-      { id: 'script', label: 'Script Engine', icon: FileText, href: '/dashboard/script' },
-      { id: 'storyboard', label: 'Storyboard', icon: Layers, href: '/dashboard/storyboard', badge: 'NEW' },
-      { id: 'thumbnail', label: 'Thumbnails', icon: Image, href: '/dashboard/thumbnail', badge: 'AI' },
-      { id: 'split-test', label: 'Split Testing', icon: SplitSquareHorizontal, href: '/dashboard/split-test', badge: 'NEW' },
-      { id: 'brand-voice', label: 'Brand Voice', icon: Mic2, href: '/dashboard/brand-voice', badge: 'AI' },
+      { id: 'studio', label: 'UGC Studio', icon: Sparkles, href: '/dashboard/studio', badge: 'NEW', tip: 'Generate UGC-style ad scripts and creator briefs optimized for conversions.' },
+      { id: 'hook-lab', label: 'Hook Lab', icon: FlaskConical, href: '/dashboard/hook-lab', badge: 'AI', tip: 'Generate, score & compare video hooks. Analyze retention patterns to craft irresistible openers.' },
+      { id: 'script', label: 'Script Engine', icon: FileText, href: '/dashboard/script', tip: 'Write full video scripts with AI. Structure retention hooks, payoff beats & CTAs.' },
+      { id: 'storyboard', label: 'Storyboard', icon: Layers, href: '/dashboard/storyboard', badge: 'NEW', tip: 'Turn scripts into shot-by-shot visual storyboards for your editor or team.' },
+      { id: 'thumbnail', label: 'Thumbnails', icon: Image, href: '/dashboard/thumbnail', badge: 'AI', tip: 'Generate thumbnail concepts with AI. Preview text overlays and compare click-appeal scores.' },
+      { id: 'split-test', label: 'Split Testing', icon: SplitSquareHorizontal, href: '/dashboard/split-test', badge: 'NEW', tip: 'A/B test titles and thumbnails to find the highest click-through rate variant.' },
+      { id: 'brand-voice', label: 'Brand Voice', icon: Mic2, href: '/dashboard/brand-voice', badge: 'AI', tip: 'Define your channel\'s tone, messaging pillars & hook formulas. AI writes in your voice.' },
     ],
   },
   {
     key: 'manage',
     label: 'MANAGE',
+    tip: 'Organize your brands, save content inspiration & automate recurring workflows.',
     items: [
-      { id: 'brands', label: 'Brands', icon: Briefcase, href: '/dashboard/brands', badge: 'NEW' },
-      { id: 'vault', label: 'Vault', icon: BookMarked, href: '/dashboard/vault' },
-      { id: 'projects', label: 'Projects', icon: FolderOpen, href: '/dashboard/projects' },
-      { id: 'automations', label: 'Automations', icon: Bot, href: '/dashboard/automations', badge: 'NEW' },
+      { id: 'brands', label: 'Brands', icon: Briefcase, href: '/dashboard/brands', badge: 'NEW', tip: 'Manage multiple brand profiles — logos, palettes, tone guidelines & competitors.' },
+      { id: 'vault', label: 'Vault', icon: BookMarked, href: '/dashboard/vault', tip: 'Save videos, articles & inspiration to your personal content vault for later reference.' },
+      { id: 'projects', label: 'Projects', icon: FolderOpen, href: '/dashboard/projects', tip: 'Group scripts, thumbnails & assets into video projects. Track production status.' },
+      { id: 'automations', label: 'Automations', icon: Bot, href: '/dashboard/automations', badge: 'NEW', tip: 'Build n8n-style workflows to automate research alerts, content briefs & team updates.' },
     ],
   },
   {
     key: 'intelligence',
     label: 'INTELLIGENCE',
+    tip: 'Dashboards, analytics & AI predictions to understand what\'s working and what to make next.',
     items: [
-      { id: 'ceo', label: 'CEO Dashboard', icon: LayoutDashboard, href: '/dashboard/ceo', badge: 'NEW' },
-      { id: 'analytics', label: 'Analytics', icon: BarChart3, href: '/dashboard/analytics', badge: 'NEW' },
-      { id: 'yt-analytics', label: 'YT Analytics', icon: Radio, href: '/dashboard/yt-analytics', badge: 'NEW' },
-      { id: 'outlier-ml', label: 'Outlier Predict', icon: BrainCircuit, href: '/dashboard/outlier-ml', badge: 'AI' },
-      { id: 'reports', label: 'Reports', icon: FileBarChart, href: '/dashboard/reports', badge: 'NEW' },
-      { id: 'ops', label: 'Operations', icon: Activity, href: '/dashboard/ops' },
+      { id: 'ceo', label: 'CEO Dashboard', icon: LayoutDashboard, href: '/dashboard/ceo', badge: 'NEW', tip: 'High-level snapshot of channel health — growth, revenue, top content & key KPIs.' },
+      { id: 'analytics', label: 'Analytics', icon: BarChart3, href: '/dashboard/analytics', badge: 'NEW', tip: 'Deep-dive into video performance, audience retention & engagement trends over time.' },
+      { id: 'yt-analytics', label: 'YT Analytics', icon: Radio, href: '/dashboard/yt-analytics', badge: 'NEW', tip: 'Native YouTube Studio analytics pulled directly from your connected channel.' },
+      { id: 'outlier-ml', label: 'Outlier Predict', icon: BrainCircuit, href: '/dashboard/outlier-ml', badge: 'AI', tip: 'ML model that predicts which video ideas have the highest chance of outperforming your average.' },
+      { id: 'reports', label: 'Reports', icon: FileBarChart, href: '/dashboard/reports', badge: 'NEW', tip: 'Weekly AI-generated performance reports with pattern analysis and next-week recommendations.' },
+      { id: 'ops', label: 'Operations', icon: Activity, href: '/dashboard/ops', tip: 'Team task tracking, content calendar and production workflow metrics.' },
     ],
   },
   {
     key: 'docs',
     label: 'DOCS',
+    tip: 'Internal documentation, product specs & knowledge base for your team.',
     items: [
-      { id: 'docs', label: 'PRD & Docs', icon: BookOpen, href: '/dashboard/docs', badge: 'NEW' },
+      { id: 'docs', label: 'PRD & Docs', icon: BookOpen, href: '/dashboard/docs', badge: 'NEW', tip: 'Write and store product requirement docs, SOPs & internal notes for your content operation.' },
     ],
   },
 ];
@@ -215,7 +222,7 @@ function NavItemRow({
     return (
       <Link
         href={item.href}
-        title={item.label}
+        title={item.tip ? `${item.label} — ${item.tip}` : item.label}
         className={cn(
           'flex items-center justify-center w-9 h-9 rounded-lg transition-all duration-150 mx-auto',
           isActive
@@ -249,6 +256,7 @@ function NavItemRow({
 
       <Link
         href={item.href}
+        title={item.tip}
         className={cn(
           'flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150',
           onDragStart && 'pl-5',
@@ -714,7 +722,7 @@ export function Sidebar() {
                 {/* Section header — click to toggle */}
                 <button
                   onClick={() => toggleSection(section.key)}
-                  className="w-full flex items-center justify-between px-3 py-1 mb-0.5 rounded-md hover:bg-zinc-800/40 transition-colors group/sec"
+                  className="w-full flex items-center justify-between px-3 py-1 mb-0.5 rounded-md hover:bg-zinc-800/40 transition-colors group/sec relative"
                 >
                   <span className="text-[9px] font-black text-zinc-600 tracking-widest group-hover/sec:text-zinc-500 transition-colors">
                     {section.label}
@@ -722,6 +730,10 @@ export function Sidebar() {
                   <ChevronDown
                     className={cn('w-3 h-3 text-zinc-700 transition-transform', !open && '-rotate-90')}
                   />
+                  {/* Section tooltip */}
+                  <div className="absolute left-0 top-full mt-1 z-[60] w-56 bg-zinc-900 border border-zinc-700/80 rounded-lg px-3 py-2 text-[11px] text-zinc-400 leading-relaxed shadow-xl opacity-0 group-hover/sec:opacity-100 pointer-events-none transition-opacity delay-150 whitespace-normal text-left">
+                    {section.tip}
+                  </div>
                 </button>
 
                 {/* Section items */}
