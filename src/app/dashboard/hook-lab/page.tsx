@@ -132,19 +132,18 @@ export default function HookLabPage() {
         </div>
       </div>
 
-      {/* Framework legend */}
-      <div className="grid grid-cols-4 gap-2 mb-6">
+      {/* Framework legend — compact pills */}
+      <div className="flex items-center gap-2 mb-5 flex-wrap">
         {[
-          { icon: Target, label: 'On-Target Clarity', desc: 'Topic clear in <3 sec?', color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
-          { icon: TrendingUp, label: 'Contrast Strength', desc: 'Baseline vs reality gap', color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20' },
-          { icon: Layers, label: 'Component Alignment', desc: 'Text/visual/audio aligned?', color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/20' },
-          { icon: Eye, label: 'Curiosity Loop', desc: 'Open unanswered question?', color: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/20' },
+          { icon: Target, label: 'On-Target Clarity', color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
+          { icon: TrendingUp, label: 'Contrast Strength', color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20' },
+          { icon: Layers, label: 'Component Alignment', color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/20' },
+          { icon: Eye, label: 'Curiosity Loop', color: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/20' },
         ].map((dim) => (
-          <div key={dim.label} className={cn('border rounded-xl p-3', dim.bg)}>
-            <dim.icon className={cn('w-4 h-4 mb-1.5', dim.color)} />
-            <p className="text-[11px] font-semibold text-zinc-300 leading-tight">{dim.label}</p>
-            <p className="text-[10px] text-zinc-500 mt-0.5">{dim.desc}</p>
-          </div>
+          <span key={dim.label} className={cn('flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full border', dim.bg, dim.color)}>
+            <dim.icon className="w-3 h-3 shrink-0" />
+            {dim.label}
+          </span>
         ))}
       </div>
 

@@ -19,9 +19,20 @@ import {
   Cpu,
   Monitor,
   SlidersHorizontal,
+  DollarSign,
+  TrendingDown,
+  ExternalLink,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { cn } from '@/lib/utils';
+import {
+  TASK_COSTS,
+  OSS_ALTERNATIVES,
+  SPEND_TIERS,
+  ROUTING_RECOMMENDATIONS,
+} from '@/lib/cost-config';
 
 const PLAN_TIERS = [
   {
@@ -89,10 +100,13 @@ export default function SettingsPage() {
     setNewKeyword('');
   }
 
+  const [expandedOss, setExpandedOss] = useState<string | null>(null);
+
   const SECTIONS = [
     { id: 'account', label: 'Account', icon: User },
     { id: 'subscription', label: 'Subscription', icon: CreditCard },
     { id: 'api', label: 'API Keys', icon: Key },
+    { id: 'cost', label: 'Cost Analysis', icon: DollarSign },
     { id: 'preferences', label: 'Preferences', icon: Globe },
     { id: 'notifications', label: 'Notifications', icon: Bell },
   ];
@@ -299,35 +313,225 @@ export default function SettingsPage() {
 
           {/* API Keys */}
           {activeSection === 'api' && (
-            <div className="bg-zinc-900 border border-zinc-800/60 rounded-xl p-5 space-y-4">
-              <h2 className="text-[14px] font-semibold text-zinc-200">API Configuration</h2>
-              <p className="text-[12px] text-zinc-500">
-                These keys are stored securely as environment variables. Never share them publicly.
-              </p>
-              {[
-                { label: 'OpenAI API Key', placeholder: 'sk-...', env: 'OPENAI_API_KEY' },
-                { label: 'Supabase URL', placeholder: 'https://xxx.supabase.co', env: 'NEXT_PUBLIC_SUPABASE_URL' },
-                { label: 'Supabase Anon Key', placeholder: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...', env: 'NEXT_PUBLIC_SUPABASE_ANON_KEY' },
-                { label: 'Stripe Secret Key', placeholder: 'sk_live_...', env: 'STRIPE_SECRET_KEY' },
-                { label: 'Apify API Token', placeholder: 'apify_api_...', env: 'APIFY_API_TOKEN' },
-              ].map((field) => (
-                <div key={field.env} className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[12px] font-medium text-zinc-400">{field.label}</label>
-                    <span className="text-[10px] text-zinc-600 font-mono">{field.env}</span>
+            <div className="space-y-4">
+              {/* Core */}
+              <div className="bg-zinc-900 border border-zinc-800/60 rounded-xl p-5 space-y-4">
+                <h2 className="text-[14px] font-semibold text-zinc-200">Core API Keys</h2>
+                {[
+                  { label: 'OpenAI API Key', placeholder: 'sk-...', env: 'OPENAI_API_KEY', note: 'Used for scripts, hooks, CTR scoring, ad parsing. Required.' },
+                  { label: 'Supabase URL', placeholder: 'https://xxx.supabase.co', env: 'NEXT_PUBLIC_SUPABASE_URL', note: 'Your Supabase project URL.' },
+                  { label: 'Supabase Anon Key', placeholder: 'eyJhbGci...', env: 'NEXT_PUBLIC_SUPABASE_ANON_KEY', note: 'Public Supabase key for client-side auth.' },
+                  { label: 'Stripe Secret Key', placeholder: 'sk_live_...', env: 'STRIPE_SECRET_KEY', note: 'For billing and subscription management.' },
+                  { label: 'Apify API Token', placeholder: 'apify_api_...', env: 'APIFY_API_TOKEN', note: 'For TikTok scraping and data pipelines.' },
+                ].map((field) => (
+                  <div key={field.env} className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[12px] font-medium text-zinc-400">{field.label}</label>
+                      <span className="text-[10px] text-zinc-600 font-mono">{field.env}</span>
+                    </div>
+                    <input
+                      type="password"
+                      placeholder={field.placeholder}
+                      className="w-full bg-zinc-800/60 border border-zinc-700/50 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/60 font-mono"
+                    />
+                    <p className="text-[10px] text-zinc-600">{field.note}</p>
                   </div>
-                  <input
-                    type="password"
-                    placeholder={field.placeholder}
-                    className="w-full bg-zinc-800/60 border border-zinc-700/50 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/60 font-mono"
-                  />
-                </div>
-              ))}
-              <div className="flex items-center gap-2 pt-2 p-3 bg-amber-500/5 border border-amber-500/20 rounded-lg">
+                ))}
+              </div>
+
+              {/* Extended integrations */}
+              <div className="bg-zinc-900 border border-zinc-800/60 rounded-xl p-5 space-y-4">
+                <h2 className="text-[14px] font-semibold text-zinc-200">Extended Integrations</h2>
+                <p className="text-[12px] text-zinc-500">Optional keys that unlock additional features.</p>
+
+                {[
+                  {
+                    label: 'OpenRouter API Key',
+                    placeholder: 'sk-or-v1-...',
+                    env: 'OPENROUTER_API_KEY',
+                    note: 'Enables 20+ LLMs (Claude, Gemini, Llama, Flux images, etc.) at lower cost. Get free key at openrouter.ai.',
+                    badge: 'Recommended',
+                    badgeColor: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25',
+                  },
+                  {
+                    label: 'YouTube Data API Key',
+                    placeholder: 'AIzaSy...',
+                    env: 'YOUTUBE_API_KEY',
+                    note: 'Used for live YouTube research, channel stats, and outlier scoring. Free 10K quota/day.',
+                    badge: 'Live Research',
+                    badgeColor: 'bg-red-500/15 text-red-400 border-red-500/25',
+                  },
+                  {
+                    label: 'Facebook Ads Token',
+                    placeholder: 'EAAxxxx...',
+                    env: 'FACEBOOK_ADS_TOKEN',
+                    note: 'Meta Ads Library API access token. Enables live Facebook/Instagram ad search in Ad Intel. Requires Meta app review for commercial ads.',
+                    badge: 'Ad Intel',
+                    badgeColor: 'bg-blue-500/15 text-blue-400 border-blue-500/25',
+                  },
+                ].map((field) => (
+                  <div key={field.env} className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <label className="text-[12px] font-medium text-zinc-400">{field.label}</label>
+                        <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded border', field.badgeColor)}>{field.badge}</span>
+                      </div>
+                      <span className="text-[10px] text-zinc-600 font-mono">{field.env}</span>
+                    </div>
+                    <input
+                      type="password"
+                      placeholder={field.placeholder}
+                      className="w-full bg-zinc-800/60 border border-zinc-700/50 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/60 font-mono"
+                    />
+                    <p className="text-[10px] text-zinc-600">{field.note}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-2 p-3 bg-amber-500/5 border border-amber-500/20 rounded-lg">
                 <Shield className="w-4 h-4 text-amber-400 shrink-0" />
                 <p className="text-[11px] text-amber-300/80 leading-relaxed">
-                  In production, set these in your <code className="text-amber-400">.env.local</code> file or your hosting provider&apos;s environment variables panel. Never commit API keys to version control.
+                  Set these in <code className="text-amber-400">.env.local</code> or your hosting provider&apos;s environment variables. Never commit API keys to version control.
                 </p>
+              </div>
+            </div>
+          )}
+
+          {/* Cost Analysis */}
+          {activeSection === 'cost' && (
+            <div className="space-y-5">
+              {/* Spend tier projections */}
+              <div className="bg-zinc-900 border border-zinc-800/60 rounded-xl p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <DollarSign className="w-4 h-4 text-emerald-400" />
+                  <h2 className="text-[14px] font-semibold text-zinc-200">Estimated Monthly Spend</h2>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  {SPEND_TIERS.map(tier => (
+                    <div key={tier.label} className="bg-zinc-800/60 border border-zinc-700/40 rounded-xl p-4">
+                      <p className="text-[12px] font-semibold text-zinc-300 mb-3">{tier.label}</p>
+                      <div className="space-y-1 text-[11px] text-zinc-500 mb-3">
+                        <p>{tier.scriptsPerMonth} scripts/mo</p>
+                        <p>{tier.hooksPerMonth} hook calls/mo</p>
+                        <p>{tier.thumbnailsPerMonth} thumbnails/mo</p>
+                      </div>
+                      <div className="flex items-end justify-between">
+                        <div>
+                          <p className="text-[10px] text-zinc-600">Current (GPT-4o)</p>
+                          <p className="text-[18px] font-bold text-red-400">${tier.currentMonthlyUSD}/mo</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] text-zinc-600">Optimized</p>
+                          <p className="text-[18px] font-bold text-emerald-400">${tier.optimizedMonthlyUSD}/mo</p>
+                        </div>
+                      </div>
+                      <div className="mt-2 flex items-center gap-1 text-[10px] text-emerald-400">
+                        <TrendingDown className="w-3 h-3" />
+                        {Math.round((1 - tier.optimizedMonthlyUSD / tier.currentMonthlyUSD) * 100)}% savings with OpenRouter routing
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Per-task cost table */}
+              <div className="bg-zinc-900 border border-zinc-800/60 rounded-xl p-5">
+                <h2 className="text-[14px] font-semibold text-zinc-200 mb-4">Per-Task Cost Breakdown</h2>
+                <div className="space-y-2">
+                  {TASK_COSTS.map(entry => (
+                    <div key={entry.task} className="flex items-center gap-3 py-2 border-b border-zinc-800/40 last:border-0">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[12px] font-medium text-zinc-300">{entry.task}</p>
+                        <p className="text-[10px] text-zinc-600 mt-0.5">{entry.note}</p>
+                      </div>
+                      <div className="flex items-center gap-3 text-right shrink-0">
+                        <div>
+                          <p className="text-[10px] text-zinc-600">Current</p>
+                          <p className="text-[12px] font-mono text-red-400">${entry.currentCostPer.toFixed(4)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-zinc-600">Optimized</p>
+                          <p className="text-[12px] font-mono text-emerald-400">${entry.optimizedCostPer.toFixed(4)}</p>
+                        </div>
+                        <div className="w-12 text-right">
+                          {entry.savingsPct > 0 && (
+                            <span className="text-[11px] font-bold text-emerald-400">-{entry.savingsPct}%</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Model routing recommendations */}
+              <div className="bg-zinc-900 border border-zinc-800/60 rounded-xl p-5">
+                <h2 className="text-[14px] font-semibold text-zinc-200 mb-4">Routing Recommendations</h2>
+                <div className="space-y-3">
+                  {ROUTING_RECOMMENDATIONS.map(rule => (
+                    <div key={rule.task} className="bg-zinc-800/40 border border-zinc-700/30 rounded-xl p-3">
+                      <p className="text-[12px] font-semibold text-zinc-300 mb-1">{rule.task}</p>
+                      <p className="text-[11px] text-zinc-500 mb-1">Use: <span className="text-violet-400">{rule.use}</span></p>
+                      <p className="text-[10px] text-zinc-600">{rule.why}</p>
+                      {rule.freeOption && (
+                        <p className="text-[10px] text-emerald-500 mt-1">Free option: {rule.freeOption}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* OSS Alternatives */}
+              <div className="bg-zinc-900 border border-zinc-800/60 rounded-xl p-5">
+                <div className="flex items-center gap-2 mb-1">
+                  <h2 className="text-[14px] font-semibold text-zinc-200">Open-Source Alternatives</h2>
+                  <span className="text-[10px] bg-violet-500/15 text-violet-400 border border-violet-500/25 px-1.5 py-0.5 rounded">Self-host to save 90%+</span>
+                </div>
+                <p className="text-[11px] text-zinc-500 mb-4">GitHub projects that can replace paid API calls with local or cheap cloud compute.</p>
+                <div className="space-y-2">
+                  {OSS_ALTERNATIVES.map(oss => (
+                    <div key={oss.name} className="border border-zinc-800/60 rounded-xl overflow-hidden">
+                      <button
+                        onClick={() => setExpandedOss(expandedOss === oss.name ? null : oss.name)}
+                        className="w-full flex items-center gap-3 p-3.5 bg-zinc-800/30 hover:bg-zinc-800/50 transition-colors text-left"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-[13px] font-semibold text-zinc-200">{oss.name}</p>
+                            <span className={cn(
+                              'text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase',
+                              oss.setupDifficulty === 'easy' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25' :
+                              oss.setupDifficulty === 'medium' ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25' :
+                              'bg-red-500/15 text-red-400 border-red-500/25'
+                            )}>
+                              {oss.setupDifficulty} setup
+                            </span>
+                            <span className="text-[10px] text-zinc-500">⭐ {oss.stars}</span>
+                          </div>
+                          <p className="text-[11px] text-zinc-500 mt-0.5">Replaces: {oss.replaces}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-[12px] font-semibold text-emerald-400">{oss.selfHostCost}</p>
+                        </div>
+                        {expandedOss === oss.name ? <ChevronUp className="w-3.5 h-3.5 text-zinc-500" /> : <ChevronDown className="w-3.5 h-3.5 text-zinc-500" />}
+                      </button>
+                      {expandedOss === oss.name && (
+                        <div className="px-4 py-3 bg-zinc-900 border-t border-zinc-800/40">
+                          <p className="text-[11px] text-zinc-400 mb-2">{oss.tradeoff}</p>
+                          <a
+                            href={oss.githubUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-[11px] text-violet-400 hover:text-violet-300 transition-colors"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            View on GitHub
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}

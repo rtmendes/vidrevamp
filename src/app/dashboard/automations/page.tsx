@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   Bot,
   Zap,
@@ -23,6 +23,7 @@ import {
   Database,
   ChevronDown,
   ChevronUp,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -38,6 +39,7 @@ interface Automation {
   id: string;
   name: string;
   trigger: string;
+  triggerIcon?: 'clock' | 'calendar' | 'zap' | 'bell';
   actions: AutomationAction[];
   status: AutomationStatus;
   lastRun: string;
@@ -57,6 +59,9 @@ interface WorkflowTemplate {
   name: string;
   description: string;
   color: string;
+  triggerIcon: 'clock' | 'calendar' | 'zap' | 'bell';
+  trigger: string;
+  actions: AutomationAction[];
 }
 
 // ── Static Data ──────────────────────────────────────────────────────────────
@@ -127,6 +132,14 @@ const TEMPLATES: WorkflowTemplate[] = [
     name: 'Competitor Monitor',
     description: 'Watches rival channels and alerts you the moment a post goes viral.',
     color: 'from-red-500/20 to-orange-500/10',
+    triggerIcon: 'clock',
+    trigger: 'Every 6 hours',
+    actions: [
+      { label: 'Fetch latest videos from tracked channels' },
+      { label: 'Score each video against channel median' },
+      { label: 'Flag any video with outlier score > 5x' },
+      { label: 'Send instant alert with video link + stats' },
+    ],
   },
   {
     id: 't2',
@@ -134,6 +147,15 @@ const TEMPLATES: WorkflowTemplate[] = [
     name: 'Content Pipeline',
     description: 'Takes an idea all the way to published — script, thumbnail, and post.',
     color: 'from-blue-500/20 to-violet-500/10',
+    triggerIcon: 'zap',
+    trigger: 'New idea added to Vault',
+    actions: [
+      { label: 'Pull idea from Vault' },
+      { label: 'Generate full script with AI' },
+      { label: 'Generate 4 thumbnail concepts' },
+      { label: 'Score CTR for each thumbnail' },
+      { label: 'Add best thumbnail + script to publish queue' },
+    ],
   },
   {
     id: 't3',
@@ -141,6 +163,15 @@ const TEMPLATES: WorkflowTemplate[] = [
     name: 'A/B Test Loop',
     description: 'Auto-generates variants, deploys them, tracks performance, promotes the winner.',
     color: 'from-emerald-500/20 to-teal-500/10',
+    triggerIcon: 'zap',
+    trigger: 'New script saved',
+    actions: [
+      { label: 'Generate 4 hook variants for script' },
+      { label: 'Score all variants with CTR model' },
+      { label: 'Deploy top 2 as A/B test' },
+      { label: 'Monitor for 48h — check views + CTR' },
+      { label: 'Promote winner, archive loser' },
+    ],
   },
   {
     id: 't4',
@@ -148,6 +179,15 @@ const TEMPLATES: WorkflowTemplate[] = [
     name: 'Brand Guardian',
     description: 'Checks every script for brand tone, language, and compliance before publishing.',
     color: 'from-violet-500/20 to-pink-500/10',
+    triggerIcon: 'zap',
+    trigger: 'Script marked "ready to publish"',
+    actions: [
+      { label: 'Run brand voice analysis on script' },
+      { label: 'Flag off-brand words or phrases' },
+      { label: 'Score brand compliance (0–100)' },
+      { label: 'If score < 80, request revision' },
+      { label: 'If score ≥ 80, approve and notify' },
+    ],
   },
   {
     id: 't5',
@@ -155,6 +195,15 @@ const TEMPLATES: WorkflowTemplate[] = [
     name: 'Trend Radar',
     description: 'Monitors TikTok and YouTube trending topics weekly and surfaces opportunities.',
     color: 'from-yellow-500/20 to-orange-500/10',
+    triggerIcon: 'calendar',
+    trigger: 'Every Monday at 8am',
+    actions: [
+      { label: 'Pull top 50 trending YouTube videos in niche' },
+      { label: 'Pull top 50 TikTok trending sounds + topics' },
+      { label: 'Cross-reference with Vault hooks' },
+      { label: 'Identify gaps and new angle opportunities' },
+      { label: 'Generate weekly opportunity brief' },
+    ],
   },
   {
     id: 't6',
@@ -162,6 +211,15 @@ const TEMPLATES: WorkflowTemplate[] = [
     name: 'ROI Reporter',
     description: 'Sends a weekly performance email with views, revenue, and growth metrics.',
     color: 'from-teal-500/20 to-emerald-500/10',
+    triggerIcon: 'calendar',
+    trigger: 'Every Sunday at 6pm',
+    actions: [
+      { label: 'Aggregate views, watch time, and revenue' },
+      { label: 'Calculate week-over-week growth rates' },
+      { label: 'Identify top 3 and bottom 3 performers' },
+      { label: 'Generate AI commentary on trends' },
+      { label: 'Send formatted report email' },
+    ],
   },
 ];
 
@@ -269,6 +327,27 @@ function nextRunTimes(cron: string, count = 3): string[] {
   return results;
 }
 
+// Map trigger icon type → React node
+const TRIGGER_ICON_MAP: Record<'clock' | 'calendar' | 'zap' | 'bell', React.ReactNode> = {
+  clock:    <Clock    className="w-4 h-4 text-emerald-400" />,
+  calendar: <Calendar className="w-4 h-4 text-emerald-400" />,
+  zap:      <Zap      className="w-4 h-4 text-emerald-400" />,
+  bell:     <Bell     className="w-4 h-4 text-emerald-400" />,
+};
+
+// Legacy ID-based fallback for seed automations that predate the triggerIcon field
+const SEED_TRIGGER_ICONS: Record<string, React.ReactNode> = {
+  '1': <Clock    className="w-4 h-4 text-emerald-400" />,
+  '2': <Calendar className="w-4 h-4 text-emerald-400" />,
+  '3': <Zap      className="w-4 h-4 text-emerald-400" />,
+  '4': <Bell     className="w-4 h-4 text-emerald-400" />,
+};
+
+function getTriggerIcon(auto: Automation): React.ReactNode {
+  if (auto.triggerIcon) return TRIGGER_ICON_MAP[auto.triggerIcon];
+  return SEED_TRIGGER_ICONS[auto.id] ?? <Clock className="w-4 h-4 text-emerald-400" />;
+}
+
 export default function AutomationsPage() {
   const [automations, setAutomations] = useState<Automation[]>(AUTOMATIONS);
   const [selectedId, setSelectedId] = useState<string>('1');
@@ -276,8 +355,29 @@ export default function AutomationsPage() {
   const [cronDeployed, setCronDeployed] = useState(false);
   const [cronDeploying, setCronDeploying] = useState(false);
   const [showCronPanel, setShowCronPanel] = useState(true);
+  const [addedTemplateId, setAddedTemplateId] = useState<string | null>(null);
+  const builderRef = useRef<HTMLDivElement>(null);
 
   const selected = automations.find((a) => a.id === selectedId) ?? automations[0];
+
+  function applyTemplate(tpl: WorkflowTemplate) {
+    const newId = `tpl-${Date.now()}`;
+    const newAutomation: Automation = {
+      id: newId,
+      name: tpl.name,
+      trigger: tpl.trigger,
+      triggerIcon: tpl.triggerIcon,
+      actions: tpl.actions,
+      status: 'paused',
+      lastRun: 'Never',
+    };
+    setAutomations(prev => [...prev, newAutomation]);
+    setSelectedId(newId);
+    setAddedTemplateId(tpl.id);
+    setTimeout(() => setAddedTemplateId(null), 2000);
+    // Scroll to builder
+    setTimeout(() => builderRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  }
 
   async function deployCron() {
     setCronDeploying(true);
@@ -297,32 +397,21 @@ export default function AutomationsPage() {
     );
   }
 
-  const triggerIconMap: Record<string, React.ReactNode> = {
-    '1': <Clock className="w-4 h-4 text-emerald-400" />,
-    '2': <Calendar className="w-4 h-4 text-emerald-400" />,
-    '3': <Zap className="w-4 h-4 text-emerald-400" />,
-    '4': <Bell className="w-4 h-4 text-emerald-400" />,
-  };
-
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       {/* ── Header ── */}
-      <div className="bg-gradient-to-r from-emerald-500 to-teal-600 px-6 py-8">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-            <Bot className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-white">Automation Engine</h1>
-            <p className="text-emerald-100 text-sm">
-              Set triggers, chain actions, and let AI run your content operation 24/7.
-            </p>
-          </div>
+      <div className="px-6 py-4 border-b border-zinc-800/60 flex items-center gap-3">
+        <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+          <Bot className="w-4 h-4 text-emerald-400" />
+        </div>
+        <div>
+          <h1 className="text-[15px] font-semibold text-zinc-100 leading-none">Automation Engine</h1>
+          <p className="text-[12px] text-zinc-500 mt-0.5">Set triggers, chain actions, run your content operation 24/7</p>
         </div>
       </div>
 
       {/* ── Body ── */}
-      <div className="flex" style={{ minHeight: 'calc(100vh - 120px)' }}>
+      <div className="flex" style={{ minHeight: 'calc(100vh - 65px)' }}>
         {/* ── Left: Workflow List ── */}
         <aside className="w-[360px] flex-shrink-0 border-r border-zinc-800 bg-zinc-900 flex flex-col">
           <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
@@ -360,7 +449,7 @@ export default function AutomationsPage() {
                 {/* Row 2: trigger badge + action count */}
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full flex items-center gap-1">
-                    {triggerIconMap[auto.id]}
+                    {getTriggerIcon(auto)}
                     {auto.trigger}
                   </span>
                   <span className="text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-full">
@@ -381,7 +470,7 @@ export default function AutomationsPage() {
         {/* ── Right: Detail + Builder ── */}
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           {/* ── Visual Builder ── */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+          <div ref={builderRef} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
             <div className="flex items-center justify-between mb-5">
               <div>
                 <h2 className="text-lg font-bold text-zinc-100">{selected.name}</h2>
@@ -410,7 +499,7 @@ export default function AutomationsPage() {
               <div className="w-full border-2 border-emerald-500/50 bg-emerald-500/5 rounded-xl p-4">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 bg-emerald-500/20 rounded-lg flex items-center justify-center">
-                    {triggerIconMap[selected.id]}
+                    {getTriggerIcon(selected)}
                   </div>
                   <div>
                     <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wide">Trigger</p>
@@ -600,8 +689,20 @@ export default function AutomationsPage() {
                     <span className="text-sm font-semibold text-zinc-200">{tpl.name}</span>
                   </div>
                   <p className="text-xs text-zinc-400 mb-3 leading-relaxed">{tpl.description}</p>
-                  <button className="w-full text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-zinc-100 py-1.5 rounded-lg transition-colors border border-zinc-700/50">
-                    Use Template
+                  <button
+                    onClick={() => applyTemplate(tpl)}
+                    className={cn(
+                      'w-full text-xs font-medium py-1.5 rounded-lg transition-all border flex items-center justify-center gap-1.5',
+                      addedTemplateId === tpl.id
+                        ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                        : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-zinc-100 border-zinc-700/50',
+                    )}
+                  >
+                    {addedTemplateId === tpl.id ? (
+                      <><Sparkles className="w-3 h-3" /> Added ✓</>
+                    ) : (
+                      'Use Template'
+                    )}
                   </button>
                 </div>
               ))}

@@ -21,6 +21,10 @@ export const useAppStore = create<AppStoreState>()(
       legacyMode: false,
       toggleLegacyMode: () => set((state) => ({ legacyMode: !state.legacyMode })),
 
+      // ── Sidebar Collapse ─────────────────────────────────────
+      sidebarCollapsed: false,
+      toggleSidebarCollapsed: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+
       // ── Video Detail Modal ───────────────────────────────────
       videoModal: {
         isOpen: false,
@@ -41,6 +45,7 @@ export const useAppStore = create<AppStoreState>()(
       partialize: (state) => ({
         activeTab: state.activeTab,
         legacyMode: state.legacyMode,
+        sidebarCollapsed: state.sidebarCollapsed,
       }),
     }
   )

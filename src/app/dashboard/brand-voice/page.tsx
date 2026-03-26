@@ -192,17 +192,13 @@ export default function BrandVoicePage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       {/* Header */}
-      <div className="bg-gradient-to-r from-violet-600 via-purple-600 to-pink-600 px-6 py-8">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-            <Sparkles className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-white">Brand Voice AI</h1>
-            <p className="text-violet-100 text-sm">
-              Build a complete Brand OS — voice, messaging pillars, tone rules, and hook formulas.
-            </p>
-          </div>
+      <div className="px-6 py-4 border-b border-zinc-800/60 flex items-center gap-3">
+        <div className="w-7 h-7 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center shrink-0">
+          <Sparkles className="w-4 h-4 text-violet-400" />
+        </div>
+        <div>
+          <h1 className="text-[15px] font-semibold text-zinc-100 leading-none">Brand Voice AI</h1>
+          <p className="text-[12px] text-zinc-500 mt-0.5">Brand OS — voice, messaging pillars, tone rules &amp; hook formulas</p>
         </div>
       </div>
 

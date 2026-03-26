@@ -17,8 +17,8 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 export interface UsageEventPayload {
-  integration: 'openai' | 'supabase' | 'youtube_api' | 'ad_intel' | 'internal';
-  use_case: 'script_gen' | 'script_fix' | 'translate' | 'vision' | 'hook_lab' | 'vault_read' | 'research' | 'ad_sync' | 'split_test' | 'hook_score' | 'storyboard' | 'image_gen' | 'weekly_report' | 'daily_brief';
+  integration: 'openai' | 'supabase' | 'youtube_api' | 'ad_intel' | 'internal' | 'scrape_creators';
+  use_case: 'script_gen' | 'script_fix' | 'translate' | 'vision' | 'hook_lab' | 'vault_read' | 'research' | 'ad_sync' | 'split_test' | 'hook_score' | 'storyboard' | 'image_gen' | 'weekly_report' | 'daily_brief' | 'youtube_search' | 'fb_ad_search' | 'tiktok_search';
   brand_id?: string;
   project_id?: string;
   model?: string;

@@ -22,8 +22,17 @@ import {
   Check,
   Play,
   AlertCircle,
+  PlayCircle,
+  Globe,
+  Loader2,
+  CheckCircle,
+  Database,
+  Tv2,
+  Music2,
 } from 'lucide-react';
 import { cn, formatNumber } from '@/lib/utils';
+import { searchYouTube, searchFbAdLibrary, searchTikTok, saveYouTubeToVault, saveFbAdsToVault, saveTikTokToVault } from '@/actions/scrape-creators';
+import type { ScYouTubeVideo, ScFbAd, ScTikTokVideo, ScSearchSource } from '@/actions/scrape-creators';
 
 // ── Mock Ad Data ─────────────────────────────────────────────────────────────
 
@@ -260,7 +269,7 @@ function daysSince(dateStr: string) {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 type ViewMode = 'grid' | 'list';
-type TabView = 'ads' | 'competitors' | 'swipe';
+type TabView = 'ads' | 'competitors' | 'swipe' | 'import';
 
 export default function AdsPage() {
   const [tab, setTab] = useState<TabView>('ads');
@@ -304,6 +313,95 @@ export default function AdsPage() {
 
   function toggleAlert(id: string) {
     setCompetitors(prev => prev.map(c => c.id === id ? { ...c, alertEnabled: !c.alertEnabled } : c));
+  }
+
+  // ── Live Search (ScrapeCreators) state ───────────────────────────────────
+  type ScResults =
+    | { source: 'youtube'; items: ScYouTubeVideo[] }
+    | { source: 'facebook-ads'; items: ScFbAd[] }
+    | { source: 'tiktok'; items: ScTikTokVideo[] };
+
+  const [scSource, setScSource] = useState<ScSearchSource>('youtube');
+  const [scQuery, setScQuery] = useState('');
+  const [scCountry, setScCountry] = useState('US');
+  const [scSearching, setScSearching] = useState(false);
+  const [scResults, setScResults] = useState<ScResults | null>(null);
+  const [scError, setScError] = useState<string | null>(null);
+  const [scSaved, setScSaved] = useState<Set<string>>(new Set());
+  const [scSaving, setScSaving] = useState<Set<string>>(new Set());
+  const [scSavingAll, setScSavingAll] = useState(false);
+  const [scSaveMsg, setScSaveMsg] = useState<string | null>(null);
+
+  async function handleScSearch() {
+    if (!scQuery.trim()) return;
+    setScSearching(true);
+    setScResults(null);
+    setScError(null);
+    setScSaved(new Set());
+    setScSaveMsg(null);
+    try {
+      if (scSource === 'youtube') {
+        const r = await searchYouTube(scQuery, 20);
+        if (!r.success) setScError(r.error ?? 'Search failed');
+        else setScResults({ source: 'youtube', items: r.results });
+      } else if (scSource === 'facebook-ads') {
+        const r = await searchFbAdLibrary(scQuery, scCountry, 20);
+        if (!r.success) setScError(r.error ?? 'Search failed');
+        else setScResults({ source: 'facebook-ads', items: r.results });
+      } else {
+        const r = await searchTikTok(scQuery, 20);
+        if (!r.success) setScError(r.error ?? 'Search failed');
+        else setScResults({ source: 'tiktok', items: r.results });
+      }
+    } catch (e) {
+      setScError(e instanceof Error ? e.message : 'Search failed');
+    } finally {
+      setScSearching(false);
+    }
+  }
+
+  async function saveScItem(id: string) {
+    if (!scResults || scSaved.has(id)) return;
+    setScSaving(prev => new Set(Array.from(prev).concat(id)));
+    try {
+      let res;
+      if (scResults.source === 'youtube') {
+        const item = scResults.items.find((v: ScYouTubeVideo) => v.id === id);
+        if (item) res = await saveYouTubeToVault([item]);
+      } else if (scResults.source === 'facebook-ads') {
+        const item = scResults.items.find((v: ScFbAd) => v.id === id);
+        if (item) res = await saveFbAdsToVault([item]);
+      } else {
+        const item = scResults.items.find((v: ScTikTokVideo) => v.id === id);
+        if (item) res = await saveTikTokToVault([item]);
+      }
+      if (res?.success) setScSaved(prev => new Set(Array.from(prev).concat(id)));
+    } finally {
+      setScSaving(prev => { const s = new Set(Array.from(prev)); s.delete(id); return s; });
+    }
+  }
+
+  async function saveAllScResults() {
+    if (!scResults || scResults.items.length === 0) return;
+    setScSavingAll(true);
+    setScSaveMsg(null);
+    try {
+      let res;
+      if (scResults.source === 'youtube') {
+        res = await saveYouTubeToVault(scResults.items as ScYouTubeVideo[]);
+      } else if (scResults.source === 'facebook-ads') {
+        res = await saveFbAdsToVault(scResults.items as ScFbAd[]);
+      } else {
+        res = await saveTikTokToVault(scResults.items as ScTikTokVideo[]);
+      }
+      if (res?.success) {
+        const ids = scResults.items.map((i: ScYouTubeVideo | ScFbAd | ScTikTokVideo) => i.id);
+        setScSaved(new Set(ids));
+        setScSaveMsg(`${res.saved} items saved to Vault`);
+      }
+    } finally {
+      setScSavingAll(false);
+    }
   }
 
   const activeFilterCount = [platform !== 'All', industry !== 'All', activeOnly, minSpend > 0].filter(Boolean).length;
@@ -358,6 +456,7 @@ export default function AdsPage() {
           { id: 'ads', label: 'Ad Library', icon: Play },
           { id: 'competitors', label: 'Competitor Tracker', icon: Target },
           { id: 'swipe', label: 'Swipe File', icon: BookMarked },
+          { id: 'import', label: 'Live Search', icon: Search },
         ] as { id: TabView; label: string; icon: React.FC<{ className?: string }> }[]).map(t => (
           <button
             key={t.id}
@@ -757,6 +856,314 @@ export default function AdsPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ── LIVE SEARCH TAB (ScrapeCreators) ── */}
+      {tab === 'import' && (
+        <div className="space-y-5">
+          {/* Search bar */}
+          <div className="bg-zinc-900 border border-zinc-800/60 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-[14px] font-bold text-zinc-200">Live Content Search</h2>
+                <p className="text-[12px] text-zinc-500 mt-0.5">
+                  Search YouTube, Facebook Ads, and TikTok directly — no copy-paste needed.
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-full">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Powered by ScrapeCreators
+              </div>
+            </div>
+
+            {/* Platform selector */}
+            <div className="flex gap-2 mb-4">
+              {([
+                { id: 'youtube' as ScSearchSource, label: 'YouTube', icon: PlayCircle, active: 'bg-red-600/20 border-red-500/40 text-red-300' },
+                { id: 'facebook-ads' as ScSearchSource, label: 'Facebook Ads', icon: Globe, active: 'bg-blue-600/20 border-blue-500/40 text-blue-300' },
+                { id: 'tiktok' as ScSearchSource, label: 'TikTok', icon: Music2, active: 'bg-zinc-100/10 border-zinc-300/20 text-zinc-200' },
+              ]).map(p => (
+                <button
+                  key={p.id}
+                  onClick={() => { setScSource(p.id); setScResults(null); setScError(null); }}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-semibold border transition-all',
+                    scSource === p.id ? p.active : 'bg-zinc-800 border-zinc-700/50 text-zinc-400 hover:text-zinc-200'
+                  )}
+                >
+                  <p.icon className="w-4 h-4" />
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Search row */}
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                <input
+                  type="text"
+                  placeholder={
+                    scSource === 'youtube' ? 'Search YouTube videos (e.g. "online business", "weight loss")' :
+                    scSource === 'facebook-ads' ? 'Search Facebook ads by keyword or brand' :
+                    'Search TikTok videos (e.g. "morning routine", "dropshipping")'
+                  }
+                  value={scQuery}
+                  onChange={e => setScQuery(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleScSearch()}
+                  className="w-full bg-zinc-800/60 border border-zinc-700/50 rounded-lg py-2.5 pl-10 pr-3 text-[13px] text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-orange-500/60"
+                />
+              </div>
+              {scSource === 'facebook-ads' && (
+                <select
+                  value={scCountry}
+                  onChange={e => setScCountry(e.target.value)}
+                  className="bg-zinc-800 border border-zinc-700/50 rounded-lg px-3 text-[12px] text-zinc-300 focus:outline-none"
+                >
+                  {['US', 'GB', 'AU', 'CA', 'IN', 'BR', 'DE', 'FR'].map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              )}
+              <button
+                onClick={handleScSearch}
+                disabled={scSearching || !scQuery.trim()}
+                className="flex items-center gap-2 px-5 py-2.5 bg-orange-600 hover:bg-orange-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-[13px] font-semibold text-white transition-colors whitespace-nowrap"
+              >
+                {scSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                Search
+              </button>
+            </div>
+          </div>
+
+          {/* Error */}
+          {scError && (
+            <div className="bg-red-950/30 border border-red-700/30 rounded-xl px-4 py-3 text-[13px] text-red-300">
+              {scError}
+            </div>
+          )}
+
+          {/* Save all banner */}
+          {scResults && scResults.items.length > 0 && (
+            <div className="flex items-center justify-between bg-zinc-900 border border-zinc-800/60 rounded-xl px-4 py-3">
+              <span className="text-[13px] text-zinc-300">
+                <span className="font-bold text-zinc-100">{scResults.items.length}</span> results for &ldquo;{scQuery}&rdquo;
+                {scSaveMsg && (
+                  <span className="ml-3 text-emerald-400 font-medium">✓ {scSaveMsg}</span>
+                )}
+              </span>
+              <button
+                onClick={saveAllScResults}
+                disabled={scSavingAll || scSaved.size === scResults.items.length}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-1.5 rounded-lg text-[12px] font-semibold border transition-all',
+                  scSaved.size === scResults.items.length
+                    ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 cursor-default'
+                    : 'bg-violet-600 hover:bg-violet-500 border-transparent text-white disabled:opacity-50'
+                )}
+              >
+                {scSavingAll ? (
+                  <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…</>
+                ) : scSaved.size === scResults.items.length ? (
+                  <><CheckCircle className="w-3.5 h-3.5" /> All Saved</>
+                ) : (
+                  <><Database className="w-3.5 h-3.5" /> Save All to Vault</>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* ── YouTube Results ── */}
+          {scResults?.source === 'youtube' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {(scResults.items as ScYouTubeVideo[]).map(v => (
+                <div key={v.id} className="bg-zinc-900 border border-zinc-800/60 rounded-xl overflow-hidden hover:border-zinc-700 transition-all group">
+                  <div className="relative aspect-video bg-zinc-800 overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={v.thumbnail} alt={v.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/70 to-transparent" />
+                    {v.isShort && (
+                      <div className="absolute top-2 left-2 text-[9px] font-bold bg-red-600 text-white px-1.5 py-0.5 rounded">SHORT</div>
+                    )}
+                    <div className="absolute bottom-2 right-2 flex items-center gap-1 bg-zinc-900/80 backdrop-blur-sm rounded px-1.5 py-0.5">
+                      <Eye className="w-2.5 h-2.5 text-zinc-400" />
+                      <span className="text-[10px] text-zinc-300 font-mono">{formatNumber(v.views)}</span>
+                    </div>
+                    <div className="absolute bottom-2 left-2 text-[9px] font-bold bg-red-600 text-white px-1.5 py-0.5 rounded">YT</div>
+                  </div>
+                  <div className="p-3">
+                    <p className="text-[13px] font-semibold text-zinc-200 line-clamp-2 leading-snug mb-1.5">{v.title}</p>
+                    <p className="text-[11px] text-zinc-500 mb-2.5">{v.channelName} {v.publishedAt ? `· ${v.publishedAt.slice(0,10)}` : ''}</p>
+                    {v.description && (
+                      <p className="text-[11px] text-zinc-600 line-clamp-2 mb-3 italic">{v.description}</p>
+                    )}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => saveScItem(v.id)}
+                        disabled={scSaving.has(v.id) || scSaved.has(v.id)}
+                        className={cn(
+                          'flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all',
+                          scSaved.has(v.id)
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 cursor-default'
+                            : 'bg-violet-600 hover:bg-violet-500 text-white'
+                        )}
+                      >
+                        {scSaving.has(v.id) ? <Loader2 className="w-3 h-3 animate-spin" /> :
+                         scSaved.has(v.id) ? <><CheckCircle className="w-3 h-3" /> Saved</> :
+                         <><Database className="w-3 h-3" /> Save to Vault</>}
+                      </button>
+                      <a
+                        href={v.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 text-[11px] transition-colors"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ── Facebook Ads Results ── */}
+          {scResults?.source === 'facebook-ads' && (
+            <div className="space-y-3">
+              {(scResults.items as ScFbAd[]).map(ad => (
+                <div key={ad.id} className="bg-zinc-900 border border-zinc-800/60 rounded-xl p-4 hover:border-zinc-700 transition-all">
+                  <div className="flex gap-4">
+                    {ad.thumbnailUrl && (
+                      <div className="w-28 aspect-video rounded-lg overflow-hidden bg-zinc-800 flex-shrink-0">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={ad.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="text-[13px] font-bold text-zinc-200">{ad.pageName}</span>
+                        {ad.isActive && (
+                          <span className="text-[9px] font-bold bg-emerald-900/60 border border-emerald-500/30 text-emerald-400 px-1.5 py-0.5 rounded-full">ACTIVE</span>
+                        )}
+                        <div className="ml-auto flex gap-1">
+                          {ad.platforms.slice(0, 3).map(p => (
+                            <span key={p} className="text-[9px] bg-blue-950/50 border border-blue-700/30 text-blue-400 px-1.5 py-0.5 rounded">{p}</span>
+                          ))}
+                        </div>
+                      </div>
+                      {ad.adCreativeBody && (
+                        <p className="text-[12px] text-zinc-300 leading-relaxed mb-2 line-clamp-3">{ad.adCreativeBody}</p>
+                      )}
+                      {ad.adCreativeLinkTitle && (
+                        <p className="text-[11px] text-blue-400 font-medium mb-1.5">{ad.adCreativeLinkTitle}</p>
+                      )}
+                      <div className="flex items-center gap-4 text-[11px] text-zinc-500 mb-3">
+                        {(ad.spendLower || 0) > 0 && (
+                          <span className="text-orange-400 font-medium">${ad.spendLower?.toLocaleString()}–${ad.spendUpper?.toLocaleString()} spend</span>
+                        )}
+                        {ad.callToAction && <span className="bg-zinc-800 px-1.5 py-0.5 rounded">{ad.callToAction}</span>}
+                        {ad.startDate && <span>{ad.startDate}</span>}
+                      </div>
+                      <button
+                        onClick={() => saveScItem(ad.id)}
+                        disabled={scSaving.has(ad.id) || scSaved.has(ad.id)}
+                        className={cn(
+                          'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-semibold transition-all',
+                          scSaved.has(ad.id)
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 cursor-default'
+                            : 'bg-violet-600 hover:bg-violet-500 text-white'
+                        )}
+                      >
+                        {scSaving.has(ad.id) ? <Loader2 className="w-3 h-3 animate-spin" /> :
+                         scSaved.has(ad.id) ? <><CheckCircle className="w-3 h-3" /> Saved to Vault</> :
+                         <><Database className="w-3 h-3" /> Save to Vault</>}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ── TikTok Results ── */}
+          {scResults?.source === 'tiktok' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {(scResults.items as ScTikTokVideo[]).map(v => (
+                <div key={v.id} className="bg-zinc-900 border border-zinc-800/60 rounded-xl overflow-hidden hover:border-zinc-700 transition-all group">
+                  <div className="relative aspect-video bg-zinc-800 overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={v.thumbnail} alt={v.desc} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/70 to-transparent" />
+                    <div className="absolute bottom-2 right-2 flex items-center gap-1 bg-zinc-900/80 backdrop-blur-sm rounded px-1.5 py-0.5">
+                      <Eye className="w-2.5 h-2.5 text-zinc-400" />
+                      <span className="text-[10px] text-zinc-300 font-mono">{formatNumber(v.views)}</span>
+                    </div>
+                    <div className="absolute bottom-2 left-2 text-[9px] font-bold bg-zinc-100 text-zinc-900 px-1.5 py-0.5 rounded">TT</div>
+                  </div>
+                  <div className="p-3">
+                    <p className="text-[13px] font-semibold text-zinc-200 line-clamp-2 leading-snug mb-1.5">{v.desc || '(No caption)'}</p>
+                    <p className="text-[11px] text-zinc-500 mb-2">
+                      @{v.author} {v.authorNickname ? `(${v.authorNickname})` : ''}
+                    </p>
+                    <div className="flex items-center gap-3 text-[11px] text-zinc-500 mb-3">
+                      <span className="flex items-center gap-1"><TrendingUp className="w-3 h-3" />{formatNumber(v.likes)} likes</span>
+                      <span>{v.shares} shares</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => saveScItem(v.id)}
+                        disabled={scSaving.has(v.id) || scSaved.has(v.id)}
+                        className={cn(
+                          'flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all',
+                          scSaved.has(v.id)
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 cursor-default'
+                            : 'bg-violet-600 hover:bg-violet-500 text-white'
+                        )}
+                      >
+                        {scSaving.has(v.id) ? <Loader2 className="w-3 h-3 animate-spin" /> :
+                         scSaved.has(v.id) ? <><CheckCircle className="w-3 h-3" /> Saved</> :
+                         <><Database className="w-3 h-3" /> Save to Vault</>}
+                      </button>
+                      <a
+                        href={v.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 text-[11px] transition-colors"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!scSearching && !scResults && !scError && (
+            <div className="text-center py-16">
+              <Tv2 className="w-10 h-10 text-zinc-700 mx-auto mb-3" />
+              <p className="text-zinc-500 text-sm mb-1">Search YouTube, Facebook Ads, or TikTok</p>
+              <p className="text-[12px] text-zinc-600">Results appear here — save anything to your Vault with one click.</p>
+            </div>
+          )}
+
+          {/* Loading skeleton */}
+          {scSearching && (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="bg-zinc-900 border border-zinc-800/60 rounded-xl overflow-hidden animate-pulse">
+                  <div className="aspect-video bg-zinc-800" />
+                  <div className="p-3 space-y-2">
+                    <div className="h-3 bg-zinc-800 rounded w-3/4" />
+                    <div className="h-3 bg-zinc-800 rounded w-1/2" />
+                    <div className="h-7 bg-zinc-800 rounded mt-3" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

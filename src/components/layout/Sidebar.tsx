@@ -38,6 +38,9 @@ import {
   Trash2,
   X,
   Check,
+  GripVertical,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store/useAppStore';
@@ -128,6 +131,7 @@ for (const section of NAV_SECTIONS) {
 }
 
 const LS_SECTIONS_KEY = 'vr_nav_sections';
+const LS_ITEM_ORDER_KEY = 'vr_nav_item_order';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -140,6 +144,17 @@ function loadSectionStates(): Record<string, boolean> {
 function saveSectionStates(states: Record<string, boolean>) {
   if (typeof window === 'undefined') return;
   localStorage.setItem(LS_SECTIONS_KEY, JSON.stringify(states));
+}
+
+function loadItemOrders(): Record<string, string[]> {
+  if (typeof window === 'undefined') return {};
+  try { return JSON.parse(localStorage.getItem(LS_ITEM_ORDER_KEY) ?? '{}'); }
+  catch { return {}; }
+}
+
+function saveItemOrders(orders: Record<string, string[]>) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(LS_ITEM_ORDER_KEY, JSON.stringify(orders));
 }
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
@@ -164,6 +179,11 @@ function NavItemRow({
   folders,
   placements,
   onMove,
+  collapsed = false,
+  isDragOver = false,
+  onDragStart,
+  onDragOver,
+  onDrop,
 }: {
   item: NavItem;
   isActive: boolean;
@@ -171,6 +191,11 @@ function NavItemRow({
   folders: NavFolder[];
   placements: Record<string, string | null>;
   onMove: (itemId: string, folderId: string | null) => void;
+  collapsed?: boolean;
+  isDragOver?: boolean;
+  onDragStart?: () => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDrop?: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -185,12 +210,48 @@ function NavItemRow({
     return () => document.removeEventListener('mousedown', handler);
   }, [menuOpen]);
 
+  // Collapsed: icon-only with tooltip
+  if (collapsed) {
+    return (
+      <Link
+        href={item.href}
+        title={item.label}
+        className={cn(
+          'flex items-center justify-center w-9 h-9 rounded-lg transition-all duration-150 mx-auto',
+          isActive
+            ? 'bg-violet-500/15 text-violet-300 border border-violet-500/20'
+            : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/60'
+        )}
+      >
+        <item.icon className="w-4 h-4 shrink-0" />
+      </Link>
+    );
+  }
+
   return (
-    <div className="relative group/item" style={{ paddingLeft: depth > 0 ? `${depth * 10}px` : undefined }}>
+    <div
+      className={cn(
+        'relative group/item transition-colors',
+        isDragOver && 'border-t border-violet-500/50',
+      )}
+      style={{ paddingLeft: depth > 0 ? `${depth * 10}px` : undefined }}
+      draggable={!!onDragStart}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+    >
+      {/* Drag handle */}
+      {onDragStart && (
+        <span className="absolute left-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/item:opacity-100 cursor-grab active:cursor-grabbing text-zinc-600 hover:text-zinc-400 z-10">
+          <GripVertical className="w-3 h-3" />
+        </span>
+      )}
+
       <Link
         href={item.href}
         className={cn(
           'flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150',
+          onDragStart && 'pl-5',
           isActive
             ? 'bg-violet-500/15 text-violet-300 border border-violet-500/20'
             : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
@@ -222,7 +283,6 @@ function NavItemRow({
           style={{ top: '100%' }}
         >
           <div className="px-3 py-1 text-[10px] text-zinc-600 font-semibold uppercase tracking-wider">Move to</div>
-          {/* Default section option */}
           <button
             onClick={() => { onMove(item.id, null); setMenuOpen(false); }}
             className={cn(
@@ -234,7 +294,6 @@ function NavItemRow({
             Default section
             {currentFolder === null && <Check className="w-3 h-3 ml-auto text-violet-400" />}
           </button>
-          {/* Folder options */}
           {folders.map((f) => (
             <button
               key={f.id}
@@ -259,10 +318,18 @@ function NavItemRow({
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { legacyMode, toggleLegacyMode } = useAppStore();
+  const { legacyMode, toggleLegacyMode, sidebarCollapsed, toggleSidebarCollapsed } = useAppStore();
 
   // Section open/closed states (localStorage-backed)
   const [sectionStates, setSectionStates] = useState<Record<string, boolean>>({});
+
+  // Per-section item order (localStorage-backed)
+  const [itemOrders, setItemOrders] = useState<Record<string, string[]>>({});
+
+  // Drag state (refs to avoid re-renders mid-drag)
+  const dragItem = useRef<{ sectionKey: string; itemId: string } | null>(null);
+  const dragOverItem = useRef<{ sectionKey: string; itemId: string } | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   // Custom folders from Supabase
   const [folders, setFolders] = useState<NavFolder[]>([]);
@@ -284,6 +351,7 @@ export function Sidebar() {
   // Load initial state
   useEffect(() => {
     setSectionStates(loadSectionStates());
+    setItemOrders(loadItemOrders());
     getNavState().then((state) => {
       setFolders(state.folders);
       setPlacements(state.placements);
@@ -332,9 +400,7 @@ export function Sidebar() {
 
     const result = await createNavFolder(name, parentId);
     if (result.id) {
-      // Replace temp ID with real ID
       setFolders((prev) => prev.map((f) => f.id === tempId ? { ...f, id: result.id! } : f));
-      // Update placements that referenced the temp ID
       setPlacements((prev) => {
         const next = { ...prev };
         for (const [k, v] of Object.entries(next)) {
@@ -343,7 +409,6 @@ export function Sidebar() {
         return next;
       });
     } else {
-      // Remove optimistic entry on failure
       setFolders((prev) => prev.filter((f) => f.id !== tempId));
     }
   }, [folders]);
@@ -377,6 +442,65 @@ export function Sidebar() {
     });
     moveNavItem(itemId, folderId);
   }, []);
+
+  // ─── Drag-to-reorder handlers ─────────────────────────────────────────────
+
+  const handleDragStart = useCallback((sectionKey: string, itemId: string) => {
+    dragItem.current = { sectionKey, itemId };
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, sectionKey: string, itemId: string) => {
+    e.preventDefault();
+    dragOverItem.current = { sectionKey, itemId };
+    setDragOverId(itemId);
+  }, []);
+
+  const handleDrop = useCallback((sectionKey: string) => {
+    setDragOverId(null);
+    if (!dragItem.current || !dragOverItem.current) return;
+    if (dragItem.current.sectionKey !== sectionKey || dragOverItem.current.sectionKey !== sectionKey) return;
+    if (dragItem.current.itemId === dragOverItem.current.itemId) return;
+
+    const section = NAV_SECTIONS.find((s) => s.key === sectionKey);
+    if (!section) return;
+    const movedItemSet = new Set(Object.keys(placements).filter((k) => placements[k] !== null));
+    const visibleIds = section.items.filter((i) => !movedItemSet.has(i.id)).map((i) => i.id);
+    const currentOrder = itemOrders[sectionKey] ?? visibleIds;
+    // Ensure all visible items are in the order array
+    const fullOrder = [
+      ...currentOrder.filter((id) => visibleIds.includes(id)),
+      ...visibleIds.filter((id) => !currentOrder.includes(id)),
+    ];
+
+    const fromIdx = fullOrder.indexOf(dragItem.current.itemId);
+    const toIdx = fullOrder.indexOf(dragOverItem.current.itemId);
+    if (fromIdx === -1 || toIdx === -1) return;
+
+    const newOrder = [...fullOrder];
+    newOrder.splice(fromIdx, 1);
+    newOrder.splice(toIdx, 0, dragItem.current.itemId);
+
+    setItemOrders((prev) => {
+      const next = { ...prev, [sectionKey]: newOrder };
+      saveItemOrders(next);
+      return next;
+    });
+
+    dragItem.current = null;
+    dragOverItem.current = null;
+  }, [itemOrders, placements]);
+
+  // Returns visible items for a section, sorted by stored order
+  const getSectionItems = useCallback((section: NavSection): NavItem[] => {
+    const movedItemSet = new Set(Object.keys(placements).filter((k) => placements[k] !== null));
+    const visible = section.items.filter((item) => !movedItemSet.has(item.id));
+    const order = itemOrders[section.key];
+    if (!order) return visible;
+    return [
+      ...order.map((id) => visible.find((i) => i.id === id)).filter(Boolean) as NavItem[],
+      ...visible.filter((i) => !order.includes(i.id)),
+    ];
+  }, [itemOrders, placements]);
 
   // Build folder tree structure: Map<parentId | null, children[]>
   const folderTree = new Map<string | null, NavFolder[]>();
@@ -523,137 +647,215 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-[220px] bg-zinc-950 border-r border-zinc-800/60 flex flex-col z-40">
-      {/* Logo */}
-      <div className="px-5 py-5 border-b border-zinc-800/60">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
+    <aside className={cn(
+      'fixed left-0 top-0 h-screen bg-zinc-950 border-r border-zinc-800/60 flex flex-col z-40 transition-all duration-200',
+      sidebarCollapsed ? 'w-14' : 'w-[220px]',
+    )}>
+      {/* Logo + collapse toggle */}
+      <div className="px-3 py-4 border-b border-zinc-800/60 flex items-center justify-between gap-2 shrink-0">
+        {sidebarCollapsed ? (
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/20 mx-auto">
             <Zap className="w-4 h-4 text-white" strokeWidth={2.5} />
           </div>
-          <span className="text-white font-semibold text-[15px] tracking-tight">VidRevamp</span>
-        </div>
+        ) : (
+          <div className="flex items-center gap-2.5 pl-2">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
+              <Zap className="w-4 h-4 text-white" strokeWidth={2.5} />
+            </div>
+            <span className="text-white font-semibold text-[15px] tracking-tight">VidRevamp</span>
+          </div>
+        )}
+        <button
+          onClick={toggleSidebarCollapsed}
+          title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className={cn(
+            'p-1.5 rounded-lg text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800/60 transition-all shrink-0',
+            sidebarCollapsed && 'mx-auto',
+          )}
+        >
+          {sidebarCollapsed
+            ? <PanelLeftOpen className="w-3.5 h-3.5" />
+            : <PanelLeftClose className="w-3.5 h-3.5" />
+          }
+        </button>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 py-3 px-3 overflow-y-auto space-y-1 overflow-x-visible">
-
-        {/* ── Built-in sections (accordion) ─────────────────────────── */}
-        {NAV_SECTIONS.map((section) => {
-          const open = isSectionOpen(section.key);
-          // Only show items NOT moved to a custom folder
-          const visibleItems = section.items.filter((item) => !movedItems.has(item.id));
-
-          return (
-            <div key={section.key} className="mb-1">
-              {/* Section header — click to toggle */}
-              <button
-                onClick={() => toggleSection(section.key)}
-                className="w-full flex items-center justify-between px-3 py-1 mb-0.5 rounded-md hover:bg-zinc-800/40 transition-colors group/sec"
-              >
-                <span className="text-[9px] font-black text-zinc-600 tracking-widest group-hover/sec:text-zinc-500 transition-colors">
-                  {section.label}
-                </span>
-                <ChevronDown
-                  className={cn('w-3 h-3 text-zinc-700 transition-transform', !open && '-rotate-90')}
+      {sidebarCollapsed ? (
+        // ── Collapsed: flat icon list ──────────────────────────────────────
+        <nav className="flex-1 py-3 flex flex-col items-center gap-0.5 overflow-y-auto overflow-x-hidden">
+          {NAV_SECTIONS.flatMap((section) =>
+            section.items
+              .filter((item) => !movedItems.has(item.id))
+              .map((item) => (
+                <NavItemRow
+                  key={item.id}
+                  item={item}
+                  isActive={pathname === item.href || pathname.startsWith(`${item.href}/`)}
+                  folders={folders}
+                  placements={placements}
+                  onMove={handleMoveItem}
+                  collapsed
                 />
-              </button>
-
-              {/* Section items */}
-              {open && (
-                <div className="space-y-0.5">
-                  {visibleItems.map((item) => (
-                    <NavItemRow
-                      key={item.id}
-                      item={item}
-                      isActive={pathname === item.href || pathname.startsWith(`${item.href}/`)}
-                      folders={folders}
-                      placements={placements}
-                      onMove={handleMoveItem}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-        {/* ── Custom Folders ────────────────────────────────────────── */}
-        {(folders.length > 0 || editing?.type === 'create' && editing.parentId === null) && (
-          <div className="mb-1 pt-1">
-            <div className="flex items-center justify-between px-3 py-1 mb-0.5">
-              <span className="text-[9px] font-black text-zinc-600 tracking-widest">FOLDERS</span>
-            </div>
-            <div className="space-y-0.5">
-              {/* Root folders */}
-              {(folderTree.get(null) ?? []).map((folder) => renderFolder(folder))}
-
-              {/* New root folder input */}
-              {editing?.type === 'create' && editing.parentId === null && (
-                <NewFolderInput
-                  value={editing.value}
-                  onChange={(v) => setEditing((prev) => prev ? { ...prev, value: v } : prev)}
-                  onSubmit={() => handleCreateFolder(editing.value, null)}
-                  onCancel={() => setEditing(null)}
-                />
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* New root folder — inline create or trigger */}
-        {!(editing?.type === 'create' && editing.parentId === null) && (
-          <button
-            onClick={() => setEditing({ type: 'create', parentId: null, value: '' })}
-            className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800/40 transition-all border border-dashed border-zinc-800 hover:border-zinc-700"
-          >
-            <FolderPlus className="w-3.5 h-3.5" />
-            New folder
-          </button>
-        )}
-      </nav>
-
-      {/* Bottom section — settings, user */}
-      <div className="p-3 border-t border-zinc-800/60 space-y-1">
-        {/* Legacy mode toggle */}
-        <button
-          onClick={toggleLegacyMode}
-          className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40 transition-all"
-        >
-          <span>Legacy Mode</span>
-          <div className={cn('w-7 h-4 rounded-full transition-colors relative', legacyMode ? 'bg-violet-600' : 'bg-zinc-700')}>
-            <div className={cn('w-3 h-3 rounded-full bg-white absolute top-0.5 transition-transform', legacyMode ? 'translate-x-3.5' : 'translate-x-0.5')} />
-          </div>
-        </button>
-
-        {/* Settings + compact upgrade nudge */}
-        <Link
-          href="/dashboard/settings"
-          className={cn(
-            'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group',
-            pathname === '/dashboard/settings'
-              ? 'bg-violet-500/15 text-violet-300 border border-violet-500/20'
-              : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
+              ))
           )}
-        >
-          <Settings className="w-4 h-4 text-zinc-500 group-hover:text-zinc-300 shrink-0" />
-          Settings
-          {/* Compact upgrade nudge replaces the Pro Plan card */}
-          <span className="ml-auto flex items-center gap-1 bg-yellow-500/10 border border-yellow-500/20 rounded-full px-1.5 py-0.5">
-            <Crown className="w-2.5 h-2.5 text-yellow-400" />
-            <span className="text-[9px] font-black text-yellow-500 tracking-wider">PRO</span>
-          </span>
-        </Link>
+        </nav>
+      ) : (
+        // ── Expanded: full nav with sections and folders ───────────────────
+        <nav className="flex-1 py-3 px-3 overflow-y-auto space-y-1 overflow-x-visible">
 
-        {/* User info */}
-        <div className="flex items-center gap-2.5 px-3 py-2">
-          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-[11px] font-bold text-white shrink-0">
-            U
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[12px] font-medium text-zinc-300 truncate">creator@email.com</p>
-            <p className="text-[10px] text-zinc-600">Free Plan · 10 credits</p>
-          </div>
-        </div>
+          {/* Built-in sections (accordion) */}
+          {NAV_SECTIONS.map((section) => {
+            const open = isSectionOpen(section.key);
+            const visibleItems = getSectionItems(section);
+
+            return (
+              <div key={section.key} className="mb-1">
+                {/* Section header — click to toggle */}
+                <button
+                  onClick={() => toggleSection(section.key)}
+                  className="w-full flex items-center justify-between px-3 py-1 mb-0.5 rounded-md hover:bg-zinc-800/40 transition-colors group/sec"
+                >
+                  <span className="text-[9px] font-black text-zinc-600 tracking-widest group-hover/sec:text-zinc-500 transition-colors">
+                    {section.label}
+                  </span>
+                  <ChevronDown
+                    className={cn('w-3 h-3 text-zinc-700 transition-transform', !open && '-rotate-90')}
+                  />
+                </button>
+
+                {/* Section items */}
+                {open && (
+                  <div
+                    className="space-y-0.5"
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => handleDrop(section.key)}
+                  >
+                    {visibleItems.map((item) => (
+                      <NavItemRow
+                        key={item.id}
+                        item={item}
+                        isActive={pathname === item.href || pathname.startsWith(`${item.href}/`)}
+                        folders={folders}
+                        placements={placements}
+                        onMove={handleMoveItem}
+                        isDragOver={dragOverId === item.id}
+                        onDragStart={() => handleDragStart(section.key, item.id)}
+                        onDragOver={(e) => handleDragOver(e, section.key, item.id)}
+                        onDrop={() => handleDrop(section.key)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Custom Folders */}
+          {(folders.length > 0 || editing?.type === 'create' && editing.parentId === null) && (
+            <div className="mb-1 pt-1">
+              <div className="flex items-center justify-between px-3 py-1 mb-0.5">
+                <span className="text-[9px] font-black text-zinc-600 tracking-widest">FOLDERS</span>
+              </div>
+              <div className="space-y-0.5">
+                {(folderTree.get(null) ?? []).map((folder) => renderFolder(folder))}
+                {editing?.type === 'create' && editing.parentId === null && (
+                  <NewFolderInput
+                    value={editing.value}
+                    onChange={(v) => setEditing((prev) => prev ? { ...prev, value: v } : prev)}
+                    onSubmit={() => handleCreateFolder(editing.value, null)}
+                    onCancel={() => setEditing(null)}
+                  />
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* New root folder trigger */}
+          {!(editing?.type === 'create' && editing.parentId === null) && (
+            <button
+              onClick={() => setEditing({ type: 'create', parentId: null, value: '' })}
+              className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800/40 transition-all border border-dashed border-zinc-800 hover:border-zinc-700"
+            >
+              <FolderPlus className="w-3.5 h-3.5" />
+              New folder
+            </button>
+          )}
+        </nav>
+      )}
+
+      {/* Bottom section */}
+      <div className={cn('p-3 border-t border-zinc-800/60 space-y-1', sidebarCollapsed && 'flex flex-col items-center')}>
+        {sidebarCollapsed ? (
+          // Collapsed bottom: icon-only
+          <>
+            <button
+              onClick={toggleLegacyMode}
+              title={`Legacy Mode ${legacyMode ? 'ON' : 'OFF'}`}
+              className={cn(
+                'w-9 h-9 flex items-center justify-center rounded-lg transition-all',
+                legacyMode ? 'text-violet-400 bg-violet-500/10' : 'text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800/60',
+              )}
+            >
+              <Zap className="w-4 h-4" />
+            </button>
+            <Link
+              href="/dashboard/settings"
+              title="Settings"
+              className={cn(
+                'w-9 h-9 flex items-center justify-center rounded-lg transition-all',
+                pathname === '/dashboard/settings'
+                  ? 'bg-violet-500/15 text-violet-300 border border-violet-500/20'
+                  : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/60',
+              )}
+            >
+              <Settings className="w-4 h-4" />
+            </Link>
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-[11px] font-bold text-white shrink-0 mx-auto mt-1" title="creator@email.com">
+              U
+            </div>
+          </>
+        ) : (
+          // Expanded bottom
+          <>
+            <button
+              onClick={toggleLegacyMode}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40 transition-all"
+            >
+              <span>Legacy Mode</span>
+              <div className={cn('w-7 h-4 rounded-full transition-colors relative', legacyMode ? 'bg-violet-600' : 'bg-zinc-700')}>
+                <div className={cn('w-3 h-3 rounded-full bg-white absolute top-0.5 transition-transform', legacyMode ? 'translate-x-3.5' : 'translate-x-0.5')} />
+              </div>
+            </button>
+
+            <Link
+              href="/dashboard/settings"
+              className={cn(
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group',
+                pathname === '/dashboard/settings'
+                  ? 'bg-violet-500/15 text-violet-300 border border-violet-500/20'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
+              )}
+            >
+              <Settings className="w-4 h-4 text-zinc-500 group-hover:text-zinc-300 shrink-0" />
+              Settings
+              <span className="ml-auto flex items-center gap-1 bg-yellow-500/10 border border-yellow-500/20 rounded-full px-1.5 py-0.5">
+                <Crown className="w-2.5 h-2.5 text-yellow-400" />
+                <span className="text-[9px] font-black text-yellow-500 tracking-wider">PRO</span>
+              </span>
+            </Link>
+
+            <div className="flex items-center gap-2.5 px-3 py-2">
+              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-[11px] font-bold text-white shrink-0">
+                U
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-medium text-zinc-300 truncate">creator@email.com</p>
+                <p className="text-[10px] text-zinc-600">Free Plan · 10 credits</p>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </aside>
   );

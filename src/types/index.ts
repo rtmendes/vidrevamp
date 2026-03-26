@@ -4,7 +4,7 @@
 
 export type UserTier = 'FREE' | 'PRO' | 'AGENCY';
 export type PlatformType = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM';
-export type VaultItemType = 'HOOK' | 'STYLE';
+export type VaultItemType = 'HOOK' | 'STYLE' | 'AD';
 export type SavedItemType = 'VIDEO' | 'SCRIPT';
 
 export interface User {
@@ -144,6 +144,8 @@ export interface AppStoreState {
   setActiveTab: (tab: NavTab) => void;
   legacyMode: boolean;
   toggleLegacyMode: () => void;
+  sidebarCollapsed: boolean;
+  toggleSidebarCollapsed: () => void;
   videoModal: VideoModalState;
   openVideoModal: (video: VideoInsight) => void;
   closeVideoModal: () => void;

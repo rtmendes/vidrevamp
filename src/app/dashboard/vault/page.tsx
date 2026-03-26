@@ -12,18 +12,70 @@ import {
   Zap,
   X,
   Loader2,
+  Target,
+  TrendingUp,
+  Shield,
+  ExternalLink,
 } from 'lucide-react';
 import { getVaultItems, addVaultItem, deleteVaultItem } from '@/actions/vault';
 import { cn } from '@/lib/utils';
 import type { VaultItem, VaultItemType } from '@/types';
 
-const TYPE_FILTERS = ['All', 'HOOK', 'STYLE'] as const;
+const TYPE_FILTERS = ['All', 'HOOK', 'STYLE', 'AD'] as const;
 type TypeFilter = typeof TYPE_FILTERS[number];
+
+// Signal source filter values
+type SignalFilter = 'All' | 'organic' | 'paid-yt' | 'paid-fb' | 'dual';
+
+function getSignalTags(item: VaultItem): string[] {
+  return item.tags.filter(t => t.startsWith('signal:'));
+}
+
+function hasSignal(item: VaultItem, signal: string): boolean {
+  return item.tags.includes(`signal:${signal}`);
+}
+
+function isDualSignal(item: VaultItem): boolean {
+  const sigs = getSignalTags(item);
+  // Dual = has at least one organic signal AND at least one paid signal
+  const hasOrganic = sigs.some(s => s.includes('organic'));
+  const hasPaid = sigs.some(s => s.includes('paid'));
+  return hasOrganic && hasPaid;
+}
+
+function SignalBadge({ tag }: { tag: string }) {
+  if (tag === 'signal:organic') {
+    return (
+      <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+        <TrendingUp className="w-2.5 h-2.5" />
+        organic
+      </span>
+    );
+  }
+  if (tag === 'signal:paid-yt') {
+    return (
+      <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/25">
+        <Target className="w-2.5 h-2.5" />
+        paid-yt
+      </span>
+    );
+  }
+  if (tag === 'signal:paid-fb') {
+    return (
+      <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/25">
+        <Target className="w-2.5 h-2.5" />
+        paid-fb
+      </span>
+    );
+  }
+  return null;
+}
 
 export default function VaultPage() {
   const [items, setItems] = useState<VaultItem[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('All');
+  const [signalFilter, setSignalFilter] = useState<SignalFilter>('All');
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [newType, setNewType] = useState<VaultItemType>('HOOK');
@@ -44,6 +96,13 @@ export default function VaultPage() {
   const filtered = useMemo(() => {
     let result = [...items];
     if (typeFilter !== 'All') result = result.filter((i) => i.type === typeFilter);
+    if (signalFilter !== 'All') {
+      if (signalFilter === 'dual') {
+        result = result.filter(isDualSignal);
+      } else {
+        result = result.filter(i => hasSignal(i, signalFilter));
+      }
+    }
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
@@ -53,10 +112,11 @@ export default function VaultPage() {
       );
     }
     return result;
-  }, [items, typeFilter, search]);
+  }, [items, typeFilter, signalFilter, search]);
 
   const hooks = items.filter((i) => i.type === 'HOOK');
-  const styles = items.filter((i) => i.type === 'STYLE');
+  const ads = items.filter((i) => i.type === 'AD');
+  const dualSignal = items.filter(isDualSignal);
 
   function handleCopy(item: VaultItem) {
     navigator.clipboard.writeText(item.content);
@@ -65,7 +125,6 @@ export default function VaultPage() {
   }
 
   function handleDelete(id: string) {
-    // Optimistic update
     setItems((prev) => prev.filter((i) => i.id !== id));
     startTransition(async () => {
       await deleteVaultItem(id);
@@ -76,7 +135,6 @@ export default function VaultPage() {
     if (!newContent.trim()) return;
     const tags = newTags.split(',').map((t) => t.trim()).filter(Boolean);
 
-    // Optimistic insert
     const optimistic: VaultItem = {
       id: `optimistic-${Date.now()}`,
       user_id: 'local',
@@ -93,12 +151,27 @@ export default function VaultPage() {
     startTransition(async () => {
       const result = await addVaultItem(newType, optimistic.content, tags);
       if (result.success && result.item) {
-        // Replace optimistic with real DB record
         setItems((prev) =>
           prev.map((i) => (i.id === optimistic.id ? result.item! : i))
         );
       }
     });
+  }
+
+  function typeStyle(type: VaultItemType) {
+    switch (type) {
+      case 'HOOK': return 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20';
+      case 'STYLE': return 'bg-blue-500/10 text-blue-400 border border-blue-500/20';
+      case 'AD': return 'bg-orange-500/10 text-orange-400 border border-orange-500/20';
+    }
+  }
+
+  function typeIcon(type: VaultItemType) {
+    switch (type) {
+      case 'HOOK': return <Zap className="w-2.5 h-2.5" />;
+      case 'STYLE': return <Film className="w-2.5 h-2.5" />;
+      case 'AD': return <Target className="w-2.5 h-2.5" />;
+    }
   }
 
   return (
@@ -108,20 +181,29 @@ export default function VaultPage() {
         <div>
           <h1 className="text-[22px] font-bold text-zinc-100 tracking-tight">Vault</h1>
           <p className="text-sm text-zinc-500 mt-0.5">
-            Your personal database of proven hooks and visual styles.
+            Proven hooks, styles, and ad swipes — tagged by signal source.
           </p>
         </div>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Add Item
-        </button>
+        <div className="flex items-center gap-2">
+          <a
+            href="/dashboard/ads#import"
+            className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700/50 text-zinc-300 text-[12px] font-medium px-3 py-2 rounded-lg transition-colors"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            Import Ads
+          </a>
+          <button
+            onClick={() => setShowAdd(true)}
+            className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Add Item
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <div className="bg-zinc-900 border border-zinc-800/60 rounded-xl p-4">
           <div className="flex items-center gap-2 mb-1">
             <BookMarked className="w-3.5 h-3.5 text-violet-400" />
@@ -140,10 +222,17 @@ export default function VaultPage() {
         </div>
         <div className="bg-zinc-900 border border-zinc-800/60 rounded-xl p-4">
           <div className="flex items-center gap-2 mb-1">
-            <Film className="w-3.5 h-3.5 text-blue-400" />
-            <span className="text-[11px] text-zinc-500">Styles</span>
+            <Target className="w-3.5 h-3.5 text-orange-400" />
+            <span className="text-[11px] text-zinc-500">Ad Swipes</span>
           </div>
-          <p className="text-2xl font-bold text-zinc-100">{styles.length}</p>
+          <p className="text-2xl font-bold text-zinc-100">{ads.length}</p>
+        </div>
+        <div className="bg-zinc-900 border border-zinc-800/60 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <Shield className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="text-[11px] text-zinc-500">Dual Signal</span>
+          </div>
+          <p className="text-2xl font-bold text-emerald-400">{dualSignal.length}</p>
         </div>
       </div>
 
@@ -158,20 +247,16 @@ export default function VaultPage() {
           </div>
 
           <div className="flex gap-2">
-            {(['HOOK', 'STYLE'] as const).map((t) => (
+            {(['HOOK', 'STYLE', 'AD'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setNewType(t)}
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all',
-                  newType === t
-                    ? t === 'HOOK'
-                      ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
-                      : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                    : 'bg-zinc-800 text-zinc-400 border border-zinc-700/50 hover:text-zinc-200'
+                  newType === t ? typeStyle(t) : 'bg-zinc-800 text-zinc-400 border border-zinc-700/50 hover:text-zinc-200'
                 )}
               >
-                {t === 'HOOK' ? <Zap className="w-3 h-3" /> : <Film className="w-3 h-3" />}
+                {typeIcon(t)}
                 {t}
               </button>
             ))}
@@ -181,7 +266,9 @@ export default function VaultPage() {
             placeholder={
               newType === 'HOOK'
                 ? 'Enter your hook template. Use [brackets] for variables...'
-                : 'Describe the visual style or editing technique...'
+                : newType === 'STYLE'
+                ? 'Describe the visual style or editing technique...'
+                : 'Paste ad hook, headline, CTA, or advertiser info...'
             }
             value={newContent}
             onChange={(e) => setNewContent(e.target.value)}
@@ -191,7 +278,7 @@ export default function VaultPage() {
 
           <input
             type="text"
-            placeholder="Tags (comma-separated): business, hook, tiktok..."
+            placeholder="Tags (comma-separated): signal:organic, signal:paid-yt, signal:paid-fb, business..."
             value={newTags}
             onChange={(e) => setNewTags(e.target.value)}
             className="w-full bg-zinc-800/60 border border-zinc-700/50 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/60"
@@ -215,36 +302,66 @@ export default function VaultPage() {
       )}
 
       {/* Filters */}
-      <div className="flex items-center gap-3 mb-5">
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-          <input
-            type="text"
-            placeholder="Search vault..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-zinc-800/60 border border-zinc-700/50 rounded-lg py-2 pl-9 pr-3 text-sm text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-violet-500/60"
-          />
+      <div className="space-y-3 mb-5">
+        {/* Row 1: Search + type filters */}
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1 max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+            <input
+              type="text"
+              placeholder="Search vault..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-zinc-800/60 border border-zinc-700/50 rounded-lg py-2 pl-9 pr-3 text-sm text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-violet-500/60"
+            />
+          </div>
+
+          <div className="flex gap-1.5">
+            {TYPE_FILTERS.map((f) => (
+              <button
+                key={f}
+                onClick={() => setTypeFilter(f)}
+                className={cn(
+                  'px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all',
+                  typeFilter === f
+                    ? 'bg-violet-600 text-white'
+                    : 'bg-zinc-800/60 text-zinc-400 hover:text-zinc-200 border border-zinc-700/50'
+                )}
+              >
+                {f === 'All' ? 'All' : f === 'HOOK' ? '⚡ Hooks' : f === 'STYLE' ? '🎬 Styles' : '🎯 Ads'}
+              </button>
+            ))}
+          </div>
+
+          <span className="ml-auto text-[11px] text-zinc-500">{filtered.length} items</span>
         </div>
 
-        <div className="flex gap-1.5">
-          {TYPE_FILTERS.map((f) => (
+        {/* Row 2: Signal source filter */}
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-zinc-600 font-medium">Signal:</span>
+          {([
+            { id: 'All', label: 'All Sources' },
+            { id: 'organic', label: '🟢 Organic (1of10)' },
+            { id: 'paid-yt', label: '🔴 YT Paid (VidTao)' },
+            { id: 'paid-fb', label: '🔵 FB Paid (Meta)' },
+            { id: 'dual', label: '⭐ Dual Signal' },
+          ] as { id: SignalFilter; label: string }[]).map(f => (
             <button
-              key={f}
-              onClick={() => setTypeFilter(f)}
+              key={f.id}
+              onClick={() => setSignalFilter(f.id)}
               className={cn(
-                'px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all',
-                typeFilter === f
-                  ? 'bg-violet-600 text-white'
-                  : 'bg-zinc-800/60 text-zinc-400 hover:text-zinc-200 border border-zinc-700/50'
+                'px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all',
+                signalFilter === f.id
+                  ? f.id === 'dual'
+                    ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-500/30'
+                    : 'bg-zinc-700 text-zinc-200'
+                  : 'bg-zinc-800/50 text-zinc-500 hover:text-zinc-300 border border-zinc-700/30'
               )}
             >
-              {f === 'All' ? 'All Items' : f === 'HOOK' ? '⚡ Hooks' : '🎬 Styles'}
+              {f.label}
             </button>
           ))}
         </div>
-
-        <span className="ml-auto text-[11px] text-zinc-500">{filtered.length} items</span>
       </div>
 
       {/* Loading state */}
@@ -262,69 +379,97 @@ export default function VaultPage() {
             <div className="text-center py-16 text-zinc-600">
               <BookMarked className="w-10 h-10 mx-auto mb-3 opacity-30" />
               <p className="text-sm">No items found</p>
+              {signalFilter !== 'All' && (
+                <button
+                  onClick={() => setSignalFilter('All')}
+                  className="mt-2 text-violet-400 text-[12px] hover:text-violet-300"
+                >
+                  Clear signal filter
+                </button>
+              )}
             </div>
           ) : (
-            filtered.map((item) => (
-              <div
-                key={item.id}
-                className="bg-zinc-900 border border-zinc-800/60 rounded-xl p-4 hover:border-zinc-700 transition-all group"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className={cn(
-                        'flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider',
-                        item.type === 'HOOK'
-                          ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
-                          : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                      )}>
-                        {item.type === 'HOOK' ? <Zap className="w-2.5 h-2.5" /> : <Film className="w-2.5 h-2.5" />}
-                        {item.type}
-                      </span>
-                      <span className="text-[10px] text-zinc-600">
-                        {new Date(item.created_at).toLocaleDateString()}
-                      </span>
+            filtered.map((item) => {
+              const signalTags = getSignalTags(item);
+              const regularTags = item.tags.filter(t => !t.startsWith('signal:'));
+
+              return (
+                <div
+                  key={item.id}
+                  className={cn(
+                    'bg-zinc-900 border rounded-xl p-4 hover:border-zinc-700 transition-all group',
+                    isDualSignal(item)
+                      ? 'border-emerald-800/40 hover:border-emerald-700/60'
+                      : 'border-zinc-800/60'
+                  )}
+                >
+                  {isDualSignal(item) && (
+                    <div className="flex items-center gap-1.5 mb-2 text-[10px] font-semibold text-emerald-400">
+                      <Shield className="w-3 h-3" />
+                      DUAL SIGNAL — High Confidence
+                    </div>
+                  )}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <span className={cn(
+                          'flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider',
+                          typeStyle(item.type)
+                        )}>
+                          {typeIcon(item.type)}
+                          {item.type}
+                        </span>
+
+                        {/* Signal badges */}
+                        {signalTags.map(tag => (
+                          <SignalBadge key={tag} tag={tag} />
+                        ))}
+
+                        <span className="text-[10px] text-zinc-600 ml-auto">
+                          {new Date(item.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+
+                      <p className="text-sm text-zinc-200 leading-relaxed">{item.content}</p>
+
+                      {regularTags.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-3">
+                          {regularTags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="flex items-center gap-1 text-[10px] text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded-full border border-zinc-700/40"
+                            >
+                              <Tag className="w-2.5 h-2.5" />
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
-                    <p className="text-sm text-zinc-200 leading-relaxed">{item.content}</p>
-
-                    {item.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-3">
-                        {item.tags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="flex items-center gap-1 text-[10px] text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded-full border border-zinc-700/40"
-                          >
-                            <Tag className="w-2.5 h-2.5" />
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => handleCopy(item)}
-                      className="p-2 rounded-lg hover:bg-zinc-800 transition-colors"
-                      title="Copy to clipboard"
-                    >
-                      {copiedId === item.id ? (
-                        <span className="text-[10px] text-emerald-400 font-medium">Copied!</span>
-                      ) : (
-                        <Copy className="w-3.5 h-3.5 text-zinc-500 hover:text-zinc-300" />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => handleDelete(item.id)}
-                      className="p-2 rounded-lg hover:bg-red-500/10 transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5 text-zinc-600 hover:text-red-400" />
-                    </button>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => handleCopy(item)}
+                        className="p-2 rounded-lg hover:bg-zinc-800 transition-colors"
+                        title="Copy to clipboard"
+                      >
+                        {copiedId === item.id ? (
+                          <span className="text-[10px] text-emerald-400 font-medium">Copied!</span>
+                        ) : (
+                          <Copy className="w-3.5 h-3.5 text-zinc-500 hover:text-zinc-300" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => handleDelete(item.id)}
+                        className="p-2 rounded-lg hover:bg-red-500/10 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-zinc-600 hover:text-red-400" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       )}

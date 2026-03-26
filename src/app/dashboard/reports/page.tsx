@@ -168,47 +168,31 @@ export default function ReportsPage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
       {/* Header */}
-      <div className="bg-gradient-to-r from-pink-500 to-rose-600 px-6 py-8">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-white/20 rounded-lg">
-              <FileBarChart className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-white">Intelligence Reports</h1>
-              <p className="text-pink-100 text-sm mt-0.5">
-                AI-generated weekly performance reports, pattern analysis, and next-week content briefs.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 flex-wrap">
-            <button
-              onClick={handleGenerateDailyBrief}
-              disabled={dailyLoading}
-              className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-            >
-              {dailyLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Clock className="w-4 h-4" />
-              )}
-              Daily Brief
-            </button>
-
-            <button
-              onClick={handleGenerateReport}
-              disabled={loading}
-              className="flex items-center gap-2 px-5 py-2 bg-white text-pink-600 hover:bg-pink-50 rounded-lg text-sm font-semibold transition-colors disabled:opacity-60 shadow-sm"
-            >
-              {loading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Zap className="w-4 h-4" />
-              )}
-              Generate This Week&apos;s Report
-            </button>
-          </div>
+      <div className="px-6 py-4 border-b border-zinc-800/60 flex items-center gap-3">
+        <div className="w-7 h-7 rounded-lg bg-pink-500/10 border border-pink-500/20 flex items-center justify-center shrink-0">
+          <FileBarChart className="w-4 h-4 text-pink-400" />
+        </div>
+        <div>
+          <h1 className="text-[15px] font-semibold text-zinc-100 leading-none">Intelligence Reports</h1>
+          <p className="text-[12px] text-zinc-500 mt-0.5">Weekly performance · pattern analysis · next-week briefs</p>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={handleGenerateDailyBrief}
+            disabled={dailyLoading}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-[13px] font-medium transition-colors disabled:opacity-50"
+          >
+            {dailyLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Clock className="w-3.5 h-3.5" />}
+            Daily Brief
+          </button>
+          <button
+            onClick={handleGenerateReport}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-[13px] font-medium transition-colors disabled:opacity-60"
+          >
+            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+            Generate Report
+          </button>
         </div>
       </div>
 

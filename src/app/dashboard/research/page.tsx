@@ -24,6 +24,11 @@ import {
   Music2,
   Hash,
   Flame,
+  FileText,
+  Sparkles,
+  Copy,
+  Check,
+  ChevronRight,
 } from 'lucide-react';
 import { cn, formatNumber } from '@/lib/utils';
 import { searchYouTubeVideos, getChannelVideosWithOutlierScore, searchYouTubeChannels } from '@/actions/youtube';
@@ -281,6 +286,44 @@ export default function ResearchPage() {
   async function saveHook(video: ResearchVideo) {
     setSavedHooks(prev => new Set(Array.from(prev).concat(video.id)));
     await addVaultItem('HOOK', video.hook, video.tags);
+  }
+
+  // ── Research Brief Builder ─────────────────────────────────────────────
+  const [showBriefBuilder, setShowBriefBuilder] = useState(false);
+  const [briefOrganicNotes, setBriefOrganicNotes] = useState('');
+  const [briefYtAdNotes, setBriefYtAdNotes] = useState('');
+  const [briefFbAdNotes, setBriefFbAdNotes] = useState('');
+  const [briefNiche, setBriefNiche] = useState('');
+  const [briefGenerating, setBriefGenerating] = useState(false);
+  const [generatedBrief, setGeneratedBrief] = useState('');
+  const [briefCopied, setBriefCopied] = useState(false);
+
+  async function generateBrief() {
+    if (!briefNiche.trim()) return;
+    setBriefGenerating(true);
+    setGeneratedBrief('');
+    try {
+      const { generateResearchBrief } = await import('@/actions/research');
+      const result = await generateResearchBrief({
+        niche: briefNiche,
+        organicNotes: briefOrganicNotes,
+        ytAdNotes: briefYtAdNotes,
+        fbAdNotes: briefFbAdNotes,
+      });
+      if (result.success && result.brief) {
+        setGeneratedBrief(result.brief);
+      }
+    } catch (e) {
+      console.error('Brief generation failed:', e);
+    } finally {
+      setBriefGenerating(false);
+    }
+  }
+
+  function copyBrief() {
+    navigator.clipboard.writeText(generatedBrief).catch(() => {});
+    setBriefCopied(true);
+    setTimeout(() => setBriefCopied(false), 2000);
   }
 
   const activeFilterCount = [
@@ -962,6 +1005,124 @@ export default function ResearchPage() {
           </button>
         </div>
       )}
+
+      {/* ── RESEARCH BRIEF BUILDER ─────────────────────────────────────── */}
+      <div className="mt-8 border-t border-zinc-800/60 pt-6">
+        <button
+          onClick={() => setShowBriefBuilder(!showBriefBuilder)}
+          className="flex items-center gap-3 w-full text-left group"
+        >
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+            <FileText className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <p className="text-[14px] font-semibold text-zinc-200">Research Brief Builder</p>
+            <p className="text-[11px] text-zinc-500">Combine 1of10 organic + VidTao + Facebook signals → AI content brief</p>
+          </div>
+          <ChevronRight className={cn('ml-auto w-4 h-4 text-zinc-500 transition-transform', showBriefBuilder && 'rotate-90')} />
+        </button>
+
+        {showBriefBuilder && (
+          <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* Inputs column */}
+            <div className="space-y-4">
+              <div>
+                <label className="text-[11px] font-medium text-zinc-400 mb-1.5 block">Niche / Topic *</label>
+                <input
+                  type="text"
+                  value={briefNiche}
+                  onChange={e => setBriefNiche(e.target.value)}
+                  placeholder="e.g. 'personal finance for millennials' or 'home gym workouts'"
+                  className="w-full bg-zinc-800/60 border border-zinc-700/50 rounded-lg py-2 px-3 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/60"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-medium text-zinc-400 mb-1.5 flex items-center gap-2 block">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                  1of10 Organic Outliers (optional)
+                </label>
+                <textarea
+                  value={briefOrganicNotes}
+                  onChange={e => setBriefOrganicNotes(e.target.value)}
+                  placeholder="Paste your 1of10 findings — outlier video titles, hooks, view counts, what worked organically…"
+                  rows={4}
+                  className="w-full bg-zinc-800/60 border border-zinc-700/50 rounded-lg py-2 px-3 text-[12px] text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/40 resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-medium text-zinc-400 mb-1.5 flex items-center gap-2 block">
+                  <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
+                  VidTao — Active YouTube Ads (optional)
+                </label>
+                <textarea
+                  value={briefYtAdNotes}
+                  onChange={e => setBriefYtAdNotes(e.target.value)}
+                  placeholder="Paste VidTao findings — hooks, offers, advertisers spending heavily in this niche…"
+                  rows={4}
+                  className="w-full bg-zinc-800/60 border border-zinc-700/50 rounded-lg py-2 px-3 text-[12px] text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-red-500/40 resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-medium text-zinc-400 mb-1.5 flex items-center gap-2 block">
+                  <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />
+                  Meta Ads Library — Facebook/Instagram Ads (optional)
+                </label>
+                <textarea
+                  value={briefFbAdNotes}
+                  onChange={e => setBriefFbAdNotes(e.target.value)}
+                  placeholder="Paste Facebook/Instagram ad findings — active creatives, hooks, offers that are scaling…"
+                  rows={4}
+                  className="w-full bg-zinc-800/60 border border-zinc-700/50 rounded-lg py-2 px-3 text-[12px] text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500/40 resize-none"
+                />
+              </div>
+
+              <button
+                onClick={generateBrief}
+                disabled={briefGenerating || !briefNiche.trim()}
+                className="w-full flex items-center justify-center gap-2 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl text-[13px] font-semibold text-white transition-colors"
+              >
+                {briefGenerating ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Generating brief…</>
+                ) : (
+                  <><Sparkles className="w-4 h-4" /> Generate Content Brief</>
+                )}
+              </button>
+            </div>
+
+            {/* Output column */}
+            <div>
+              {generatedBrief ? (
+                <div className="bg-zinc-900 border border-zinc-800/60 rounded-xl p-4 h-full flex flex-col">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[12px] font-semibold text-zinc-300">Generated Brief</p>
+                    <button
+                      onClick={copyBrief}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-[11px] transition-colors"
+                    >
+                      {briefCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      {briefCopied ? 'Copied!' : 'Copy'}
+                    </button>
+                  </div>
+                  <pre className="text-[12px] text-zinc-300 leading-relaxed whitespace-pre-wrap font-sans flex-1 overflow-y-auto max-h-[500px]">
+                    {generatedBrief}
+                  </pre>
+                </div>
+              ) : (
+                <div className="bg-zinc-900/50 border border-dashed border-zinc-700/40 rounded-xl p-8 h-full flex flex-col items-center justify-center text-center min-h-[300px]">
+                  <Sparkles className="w-8 h-8 text-zinc-700 mb-3" />
+                  <p className="text-zinc-500 text-[13px] font-medium mb-1">Brief will appear here</p>
+                  <p className="text-zinc-600 text-[11px] max-w-[220px]">
+                    Fill in your signals on the left and click Generate. The AI will synthesize all three data sources into a production-ready content brief.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
