@@ -2,10 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "sandcastles-dev",
+      "name": "vidrevamp-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "-p", "3010"],
-      "port": 3010
+      "runtimeArgs": ["run", "dev"],
+      "port": 3000
     }
   ]
 }

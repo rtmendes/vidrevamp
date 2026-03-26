@@ -29,10 +29,13 @@ import {
   Database,
   Tv2,
   Music2,
+  Sparkles,
 } from 'lucide-react';
 import { cn, formatNumber } from '@/lib/utils';
 import { searchYouTube, searchFbAdLibrary, searchTikTok, saveYouTubeToVault, saveFbAdsToVault, saveTikTokToVault } from '@/actions/scrape-creators';
 import type { ScYouTubeVideo, ScFbAd, ScTikTokVideo, ScSearchSource } from '@/actions/scrape-creators';
+import { AdModelerModal } from '@/components/AdModelerModal';
+import type { AdForModeling } from '@/components/AdModelerModal';
 
 // ── Mock Ad Data ─────────────────────────────────────────────────────────────
 
@@ -284,6 +287,7 @@ export default function AdsPage() {
   const [savedAds, setSavedAds] = useState<Set<string>>(new Set());
   const [copiedScript, setCopiedScript] = useState<string | null>(null);
   const [competitors, setCompetitors] = useState(MOCK_COMPETITORS);
+  const [modelingAd, setModelingAd] = useState<AdForModeling | null>(null);
 
   const filteredAds = useMemo(() => {
     let ads = [...MOCK_ADS];
@@ -740,6 +744,19 @@ export default function AdsPage() {
                         >
                           <BookMarked className="w-3 h-3" />
                           {savedAds.has(ad.id) ? 'In Swipe File' : 'Save to Swipe File'}
+                        </button>
+                        <button
+                          onClick={() => setModelingAd({
+                            id: ad.id,
+                            platform: ad.platform.toUpperCase(),
+                            ad_copy: ad.hook + '\n\n' + ad.script.join('\n'),
+                            competitor: { name: ad.advertiser },
+                            days_active: Math.floor((new Date().getTime() - new Date(ad.firstSeen).getTime()) / 86400000),
+                          })}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-semibold transition-colors"
+                        >
+                          <Sparkles className="w-3 h-3" />
+                          Model Ad
                         </button>
                         <button className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 text-[11px] transition-colors">
                           <ExternalLink className="w-3 h-3" />
@@ -1219,6 +1236,9 @@ export default function AdsPage() {
           )}
         </div>
       )}
+
+      {/* AI Ad Modeler Modal */}
+      <AdModelerModal ad={modelingAd} onClose={() => setModelingAd(null)} />
     </div>
   );
 }
