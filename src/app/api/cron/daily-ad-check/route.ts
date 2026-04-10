@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { scrapeAndSaveAds } from '@/actions/ads';
-import { calculateBrandMonthlySpend, estimateMetaAdSpend, formatSpend } from '@/lib/utils/spendEstimator';
+import { calculateBrandMonthlySpend, formatSpend } from '@/lib/utils/spendEstimator';
 
 /**
  * Vercel CRON Job — Daily Competitor Ad Check
