@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { estimateMetaAdSpend, calculateBrandMonthlySpend } from '@/lib/utils/spendEstimator';
+import { calculateBrandMonthlySpend } from '@/lib/utils/spendEstimator';
 
 /**
  * Webhook receiver for ScrapeCreators async job completions.
