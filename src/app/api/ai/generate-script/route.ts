@@ -77,7 +77,7 @@ Write the new video script now:`;
       temperature: 0.8,
       max_tokens: 1200,
     });
-  } catch (_e) {
+  } catch {
     // Log failed attempt
     await supabase.from('api_usage_logs').insert({
       user_id: userId,
