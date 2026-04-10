@@ -4,8 +4,8 @@ import { useState, useRef, useEffect } from 'react';
 import {
   Bot, Zap, Play, Plus, ArrowDown, Clock, Calendar, Bell,
   TrendingUp, BarChart3, FileText, Brain, Repeat, Settings,
-  Trash2, Copy, Timer, CheckCircle2, Database, ChevronDown,
-  ChevronUp, Sparkles, Loader2, X, ExternalLink, Webhook,
+  Trash2, Copy, Timer, CheckCircle2,
+  Sparkles, Loader2, X, ExternalLink, Webhook,
   Download, Send, WifiOff, Wifi, AlertCircle, RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
